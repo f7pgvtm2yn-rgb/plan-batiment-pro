@@ -23,7 +23,7 @@ prototype.restore=function(serialized){
 };
 function report(){
   const m=app.model;
-  const key=JSON.stringify([m.foundationAutomation,m.levels,m.elements]);
+  const key=JSON.stringify([m.foundationAutomation,m.structureDesign,m.levels,m.elements]);
   if(key!==cacheKey){cached=F.compute(m);cacheKey=key;}
   return cached;
 }

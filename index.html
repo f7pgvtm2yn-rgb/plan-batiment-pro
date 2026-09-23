@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="fr">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Plan Bâtiment Pro — v0.6</title>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Plan Bâtiment Pro — v0.7</title>
 <style>html,body{height:100%;margin:0;overflow:hidden;background:#eef1f4;font-family:system-ui,sans-serif}iframe{border:0;width:100%;height:100%;display:block}#loading{position:fixed;inset:0;display:grid;place-content:center;gap:12px;background:#eef1f4;color:#294658;text-align:center;padding:20px}#loading[hidden]{display:none}a{color:#245c7d}</style></head>
 <body><iframe id="editor" title="Éditeur Plan Bâtiment Pro"></iframe><div id="loading"><strong>Plan Bâtiment Pro</strong><span id="message">Ouverture de l’éditeur…</span><a href="engine-v05.html">Ouvrir la version précédente</a></div>
 <script>
@@ -12,10 +12,10 @@
     const html=await response.text();
     if(!html.includes('window.planApp'))throw new Error('Le fichier de l’éditeur est incomplet.');
     frame.addEventListener('load',()=>{
-      if(frame.contentWindow.PBPFoundationReady){status.hidden=true;frame.focus();}
+      if(frame.contentWindow.PBPFoundationReady && frame.contentWindow.PBPStructureReady){status.hidden=true;frame.focus();}
       else document.getElementById('message').textContent='Le module ne s’est pas chargé. Actualisez la page ou ouvrez la version précédente.';
     });
-    const scripts='<script src="foundations-core.js?v=0.6"><\/script><script src="foundations-ui.js?v=0.6"><\/script>';
+    const scripts='<script src="foundations-core.js?v=0.7"><\/script><script src="foundations-ui.js?v=0.7"><\/script><script src="structure-core.js?v=0.7"><\/script><script src="structure-ui.js?v=0.7"><\/script>';
     frame.srcdoc=html.replace('</body>',scripts+'</body>');
   }catch(error){document.getElementById('message').textContent=error.message;}
 })();
