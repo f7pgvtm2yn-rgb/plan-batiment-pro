@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="fr">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Plan Bâtiment Pro — v0.9</title>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Plan Bâtiment Pro — v0.10</title>
 <style>html,body{height:100%;margin:0;overflow:hidden;background:#eef1f4;font-family:system-ui,sans-serif}iframe{border:0;width:100%;height:100%;display:block}#loading{position:fixed;inset:0;display:grid;place-content:center;gap:12px;background:#eef1f4;color:#294658;text-align:center;padding:20px}#loading[hidden]{display:none}a{color:#245c7d}</style></head>
 <body><iframe id="editor" title="Éditeur Plan Bâtiment Pro"></iframe><div id="loading"><strong>Plan Bâtiment Pro</strong><span id="message">Ouverture de l’éditeur…</span><a href="engine-v05.html">Ouvrir la version précédente</a></div>
 <script>
@@ -9,13 +9,30 @@
   try{
     const response=await fetch('engine-v05.html',{cache:'no-cache'});
     if(!response.ok)throw new Error('Chargement de l’éditeur impossible.');
-    const html=await response.text();
+    let html=await response.text();
     if(!html.includes('window.planApp'))throw new Error('Le fichier de l’éditeur est incomplet.');
+    // Install the two v0.10 magnet hooks in the preserved v0.5 editor.
+    // The production storage key stays "planBatimentPro", not the local-test key.
+    const patches=[
+      ['function snapPoint(p){','function snapPoint(p){ if(window.PBPMagnet) return window.PBPMagnet.snap(p,{start:app.drawingStart});'],
+      ['const now=app.renderer2d.screenToWorld(screen);',`let now=app.renderer2d.screenToWorld(screen);
+    if(window.PBPMagnet && d.kind==="corner"){
+      const base=d.end==="a"?d.originalA:d.originalB;
+      const target=window.PBPMagnet.snap({x:base.x+now.x-d.start.x,y:base.y+now.y-d.start.y},{drag:d});
+      now={x:d.start.x+target.x-base.x,y:d.start.y+target.y-base.y};
+    }`]
+    ];
+    for(const [before,after] of patches){
+      if(html.split(before).length!==2)throw new Error('Version du moteur incompatible avec les repères v0.10.');
+      html=html.replace(before,after);
+    }
     frame.addEventListener('load',()=>{
-      if(frame.contentWindow.PBPFoundationReady && frame.contentWindow.PBPStructureReady && frame.contentWindow.PBPGeometryReady && frame.contentWindow.PBPBuildingReady){status.hidden=true;frame.focus();}
+      const w=frame.contentWindow;
+      if(w.PBPFoundationReady && w.PBPStructureReady && w.PBPGeometryReady && w.PBPBuildingReady && w.PBPPrecisionReady && w.PBPSolidReady && w.PBPJoistWizardReady){status.hidden=true;frame.focus();}
       else document.getElementById('message').textContent='Le module ne s’est pas chargé. Actualisez la page ou ouvrez la version précédente.';
     });
-    const scripts='<script src="geometry-tools.js?v=0.9"><\/script><script src="geometry-ui.js?v=0.9"><\/script><script src="foundations-core.js?v=0.9"><\/script><script src="foundations-ui.js?v=0.9"><\/script><script src="structure-core.js?v=0.9"><\/script><script src="structure-ui.js?v=0.9"><\/script><script src="building-core.js?v=0.9"><\/script><script src="building-ui.js?v=0.9"><\/script>';
+    const modules=['geometry-tools.js','geometry-ui.js','foundations-core.js','foundations-ui.js','structure-core.js','structure-ui.js','building-core.js','building-ui.js','snap-core.js','snap-ui.js','render3d-v10.js','joist-wizard.js'];
+    const scripts=modules.map(name=>'<script src="'+name+'?v=0.10"><\/script>').join('');
     frame.srcdoc=html.replace('</body>',scripts+'</body>');
   }catch(error){document.getElementById('message').textContent=error.message;}
 })();
