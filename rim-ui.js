@@ -4,7 +4,7 @@ const $=s=>document.querySelector(s),fmt=(v,n=1)=>Number.isFinite(v)?v.toFixed(n
 function decorate(){
  const body=$('#jwBody');if(!body)return;
  if($('#jwMaterial')&&!$('#rimRule')){
-  const p=document.createElement('p');p.id='rimRule';p.className='jw-note';p.textContent='Rive automatique : largeur du mur − 20 cm d’appui. Pour les murs simples de plus de 30 cm, la largeur restante est calculée sans saisie manuelle ; la hauteur suit le plancher au-dessus du mur.';
+  const p=document.createElement('p');p.id='rimRule';p.className='jw-note';p.textContent='Rive automatique : largeur du mur − 15 cm d’appui. Pour les murs simples de plus de 30 cm, la largeur restante est calculée sans saisie manuelle ; la hauteur suit le plancher au-dessus du mur.';
   $('#jwMaterial').closest('label').after(p);
  }
  const result=body.querySelector('.jw-result'),r=window.PBPRims.getLastPreview();
@@ -18,7 +18,7 @@ function decorate(){
 function init(){
  if(!$('#jwBody'))throw Error('Assistant de solivage absent.');
  new MutationObserver(decorate).observe($('#jwBody'),{childList:true,subtree:true});
- $('.version').textContent='v0.10.2';document.title='Plan Bâtiment Pro — v0.10.2';
+ $('.version').textContent='v0.10.3';document.title='Plan Bâtiment Pro — v0.10.3';
  window.PBPRimUIReady=true;decorate();
 }
 if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',init);else init();

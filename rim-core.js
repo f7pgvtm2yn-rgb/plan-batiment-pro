@@ -1,8 +1,8 @@
-/* v0.10.2 — project-specific 200 mm seating and automatic closure.
+/* v0.10.3 — project-specific 150 mm seating and automatic closure.
    Geometry + existing partial C24 comparison; NOT an execution detail. */
 (function(root){
 'use strict';
-const SEAT=.20, MIN_WALL=.30, EPS=1e-7;
+const SEAT=.15, MIN_WALL=.30, EPS=1e-7;
 let lastPreview=null;
 const sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y}),add=(a,b)=>({x:a.x+b.x,y:a.y+b.y}),mul=(a,t)=>({x:a.x*t,y:a.y*t});
 const dot=(a,b)=>a.x*b.x+a.y*b.y,cross=(a,b)=>a.x*b.y-a.y*b.x,dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -47,7 +47,7 @@ function calculate(model,c,r,G,S){
   const a=all[i],b=all[j];if(a.face===b.face||!oppositeOverlap(a,b))continue;
   a.shared=b.shared=true;
   if(a.bearing&&b.bearing&&a.masonry&&b.masonry&&a.width>MIN_WALL&&b.width>MIN_WALL&&Math.min(a.width,b.width)<2*SEAT-EPS)
-   return fail('rim-double-bearing','Deux travées prennent appui de part et d’autre du même mur : 2 × 20 cm dépassent sa largeur. Liaison, décalage des solives ou continuité à étudier ; aucune superposition forcée.');
+   return fail('rim-double-bearing','Deux travées prennent appui de part et d’autre du même mur : 2 × 15 cm dépassent sa largeur. Liaison, décalage des solives ou continuité à étudier ; aucune superposition forcée.');
   if(a.bearing!==b.bearing)return fail('rim-mixed-directions','Deux travées voisines abordent le même appui dans des sens différents : raccord particulier à étudier avant de générer les rives.');
  }
  let eligible=0;
@@ -55,10 +55,10 @@ function calculate(model,c,r,G,S){
   const offsets=[],outer=[];d.rims=[];
   for(const s of d.sides){
    const candidate=s.masonry&&s.uniform&&s.width>MIN_WALL+EPS;
-   if(candidate&&s.composed)return fail('rim-core-location','Mur composé avec isolation ou parements : la position du cœur porteur n’est pas définie. Les 20 cm d’appui ne sont pas pris dans l’isolation ; rive suspendue sur ce plancher.');
+   if(candidate&&s.composed)return fail('rim-core-location','Mur composé avec isolation ou parements : la position du cœur porteur n’est pas définie. Les 15 cm d’appui ne sont pas pris dans l’isolation ; rive suspendue sur ce plancher.');
    if(s.masonry&&!s.uniform)return fail('rim-variable-width','Épaisseurs différentes sur un même côté de travée : scinder le côté en appuis distincts avant le calcul des rives.');
    if(s.bearing&&!candidate){
-    issue('rim-narrow','Appui de 20 cm et rive automatique non appliqués aux murs de 30 cm ou moins ni aux poutres. Le détail d’appui de ces éléments reste à définir.');
+    issue('rim-narrow','Appui de 15 cm et rive automatique non appliqués aux murs de 30 cm ou moins ni aux poutres. Le détail d’appui de ces éléments reste à définir.');
    }
    s.seated=candidate&&(s.bearing||!s.shared);
    offsets.push(s.seated?s.width/2-SEAT:0);
@@ -113,7 +113,7 @@ function calculate(model,c,r,G,S){
   r.rim.bays.push({cutLength:d.cut,axisSpan:old.geometry.L,comparisonSpan:d.calcSpan,spacing:p.spacing,count:p.n+1});
   for(let k=0;k<=p.n;k++){
    const a=add(d.a,mul(along,p.b/2000+k*p.spacing)),b=add(a,across);
-   if(c.enabled&&r.complete)r.elements.push({...common,id:c.id+':seated:'+d.index+':'+k,type:'beam',role:'joists',floorRole:'joist',a,b,thickness:p.b/1000,height:p.h/1000,zBase:r.sourceTop,bearingDetail:'project-200mm'});
+   if(c.enabled&&r.complete)r.elements.push({...common,id:c.id+':seated:'+d.index+':'+k,type:'beam',role:'joists',floorRole:'joist',a,b,thickness:p.b/1000,height:p.h/1000,zBase:r.sourceTop,bearingDetail:'project-150mm'});
    if(c.enabled&&r.complete)r.count++;
   }
   if(c.enabled&&r.complete)for(const l of r.layers.filter(l=>l.role!=='joists')){
@@ -125,9 +125,9 @@ function calculate(model,c,r,G,S){
    if(c.enabled&&r.complete)r.elements.push({...common,id:c.id+':rim:'+d.index+':'+i,type:'slab',role:'rim',polygon,zBase:r.sourceTop,height:r.required,thickness:width,sourceWallIds:entry.wallIds,rimMaterial:s.material,nonLoadBearing:true,materialSpec:{type:s.material}});
   }
  }
- const sizes=[...new Set(r.rim.entries.map(e=>(e.wallWidth*100).toFixed(1)+' − 20 = '+(e.width*100).toFixed(1)+' cm'))];
+ const sizes=[...new Set(r.rim.entries.map(e=>(e.wallWidth*100).toFixed(1)+' − 15 = '+(e.width*100).toFixed(1)+' cm'))];
  if(sizes.length)issue('rim-result','Rives calculées automatiquement : '+sizes.join(' ; ')+'. Hauteur : '+(r.required*100).toFixed(1)+' cm, au-dessus des murs inférieurs.');
- issue('rim-scope','Appui de 20 cm et seuil de mur > 30 cm : paramètres de ce projet, pas règle normative universelle. Appuis, écrasement, humidité et fixations restent à justifier.');
+ issue('rim-scope','Appui de 15 cm et seuil de mur > 30 cm : paramètres de ce projet, pas règle normative universelle. Appuis, écrasement, humidité et fixations restent à justifier.');
  issue('rim-loads','Rive de fermeture portée par le mur inférieur, non déclarée porteuse. Son poids et ses liaisons doivent être repris dans l’étude des murs et fondations ; aucune descente de charges automatique.');
  if(r.rim.entries.some(e=>e.material==='unknown'))issue('rim-material','Matériau de rive non renseigné : seul son volume géométrique est quantifié.');
  return r;
@@ -155,4 +155,3 @@ const api={SEAT,MIN_WALL,calculate,install,offsetPolygon,area,getLastPreview:()=
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 if(root){root.PBPRims=api;if(root.PBPBuilding&&root.PBPGeometry&&root.PBPStructure&&root.PBPFoundations)install(root.PBPBuilding,root.PBPGeometry,root.PBPStructure,root.PBPFoundations);}
 })(typeof window!=='undefined'?window:globalThis);
-
