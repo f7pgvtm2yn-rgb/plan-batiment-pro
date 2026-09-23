@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Plan Bâtiment Pro — v0.4</title>
+  <title>Plan Bâtiment Pro — v0.5</title>
   <style>
 :root{
   --bg:#eef1f4;
@@ -76,15 +76,18 @@ dialog label{display:flex;align-items:center;gap:8px}
 .setting-row{display:grid;grid-template-columns:1fr 76px;gap:6px;align-items:center;margin-bottom:6px;font-size:11px}
 .setting-row input{width:58px;border:1px solid var(--line);border-radius:5px;padding:5px 5px;background:#fff}
 .preset-note{font-size:10px;line-height:1.3;color:var(--muted);margin-top:5px}
-#planCanvas.dragging-wall{cursor:grabbing}
+#planCanvas{touch-action:none;user-select:none;-webkit-user-select:none}
 #planCanvas.select-mode{cursor:default}
+#planCanvas.hover-wall{cursor:grab}
+#planCanvas.hover-corner{cursor:crosshair}
+#planCanvas.dragging-wall,#planCanvas.dragging-corner{cursor:grabbing}
 
   </style>
 </head>
 <body>
   <div id="app">
     <header class="topbar">
-      <div class="brand">PLAN BÂTIMENT PRO <span class="version">v0.4</span></div>
+      <div class="brand">PLAN BÂTIMENT PRO <span class="version" title="Déplacement indépendant des coins et des murs">v0.5</span></div>
       <div class="top-actions">
         <button id="newProjectBtn">Nouveau</button>
         <button id="saveBtn">Enregistrer</button>
@@ -154,7 +157,7 @@ dialog label{display:flex;align-items:center;gap:8px}
         </div>
 
         <div class="hint">
-          Murs : réglez l’épaisseur/hauteur avant la pose. En sélection, faites glisser un mur pour le déplacer.
+          En Sélection : glissez un <strong>rond au coin</strong> pour modifier l’angle ; glissez le <strong>corps du mur</strong> pour déplacer le mur entier. Échap annule le déplacement en cours.
         </div>
       </aside>
 
@@ -577,20 +580,65 @@ dialog label{display:flex;align-items:center;gap:8px}
       ctx.restore();
     }
 
+    // Handles use CSS pixels so they remain easy to grab at every zoom level.
     drawSelection(el){
-      if(!el) return;
+      if(!el || el.levelId!==this.app.model.activeLevelId || el.mode!=="construction") return;
       const ctx=this.ctx;
-      ctx.save();ctx.strokeStyle="#1976a7";ctx.fillStyle="#1976a7";ctx.setLineDash([5,4]);ctx.lineWidth=1.4;
+      ctx.save();ctx.strokeStyle="#1976a7";ctx.fillStyle="#1976a7";ctx.lineWidth=1.5;
       if(el.a&&el.b){
-        const a=this.worldToScreen(el.a),b=this.worldToScreen(el.b);
+        const a=this.worldToScreen(el.a), b=this.worldToScreen(el.b);
+        ctx.setLineDash([5,4]);
         ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
         ctx.setLineDash([]);
-        for(const p of [a,b]){ctx.beginPath();ctx.arc(p.x,p.y,4,0,Math.PI*2);ctx.fill();}
-      } else if(el.x!=null){
-        const p=this.worldToScreen({x:el.x,y:el.y});
-        ctx.beginPath();ctx.arc(p.x,p.y,8,0,Math.PI*2);ctx.stroke();
+        for(const end of ["a","b"]){
+          const p=end==="a"?a:b;
+          const active=WALL_TYPES.has(el.type) && this.app.selectedPart===end;
+          ctx.fillStyle=active?"#1976a7":"#ffffff";
+          ctx.beginPath();ctx.arc(p.x,p.y,active?6.5:5.5,0,Math.PI*2);ctx.fill();ctx.stroke();
+        }
+        if(WALL_TYPES.has(el.type) && Math.hypot(b.x-a.x,b.y-a.y)>44){
+          const x=(a.x+b.x)/2,y=(a.y+b.y)/2;
+          ctx.fillStyle=this.app.selectedPart?"#ffffff":"#1976a7";
+          ctx.beginPath();ctx.moveTo(x,y-4);ctx.lineTo(x+4,y);ctx.lineTo(x,y+4);ctx.lineTo(x-4,y);ctx.closePath();ctx.fill();ctx.stroke();
+        }
+      }else if(el.x!=null){
+        const p=this.worldToScreen(el);
+        ctx.setLineDash([5,4]);ctx.beginPath();ctx.arc(p.x,p.y,8,0,Math.PI*2);ctx.stroke();
       }
       ctx.restore();
+    }
+
+    hitTestCorner(screenPt, pointerType="mouse"){
+      let best=null;
+      const radius=pointerType==="touch"?17:11;
+      for(const el of this.app.model.elements){
+        if(el.levelId!==this.app.model.activeLevelId || el.mode!=="construction" || !WALL_TYPES.has(el.type) || !el.a || !el.b)continue;
+        const a=this.worldToScreen(el.a),b=this.worldToScreen(el.b);
+        // Keep a hittable body, including on short walls at low zoom.
+        const reach=Math.min(radius,Math.max(3,Math.hypot(b.x-a.x,b.y-a.y)*.28));
+        for(const end of ["a","b"]){
+          const p=end==="a"?a:b,dist=Math.hypot(screenPt.x-p.x,screenPt.y-p.y);
+          if(dist>reach)continue;
+          const prefer=el.id===this.app.selectedElement?.id;
+          if(!best || dist<best.dist-.1 || (Math.abs(dist-best.dist)<=.1 && prefer))best={element:el,end,dist};
+        }
+      }
+      return best;
+    }
+
+    drawCornerHover(){
+      if(this.app.activeTool!=="select" || this.app.dragWall)return;
+      const h=this.app.hoverCorner;
+      const el=h && this.app.model.elements.find(e=>e.id===h.id && e.levelId===this.app.model.activeLevelId && e.mode==="construction");
+      if(!el || !el[h.end])return;
+      const p=this.worldToScreen(el[h.end]),ctx=this.ctx;
+      ctx.save();ctx.lineWidth=2;ctx.strokeStyle="#1976a7";ctx.fillStyle="#eaf2f7";
+      ctx.beginPath();ctx.arc(p.x,p.y,7,0,Math.PI*2);ctx.fill();ctx.stroke();
+      const text="Coin : glisser pour modifier l’angle";
+      ctx.font="11px sans-serif";
+      const w=ctx.measureText(text).width+14,x=Math.max(4,Math.min(this.width-w-4,p.x+13)),y=Math.max(4,Math.min(this.height-26,p.y-31));
+      ctx.fillStyle="rgba(255,255,255,.96)";ctx.fillRect(x,y,w,22);
+      ctx.fillStyle="#153e56";ctx.textAlign="left";ctx.fillText(text,x+7,y+15);ctx.restore();
     }
 
     drawPreview(){
@@ -639,6 +687,7 @@ dialog label{display:flex;align-items:center;gap:8px}
       this.drawLayer(activeElements,1,false);
 
       this.drawSelection(this.app.selectedElement);
+      this.drawCornerHover();
       this.drawPreview();
     }
 
@@ -836,6 +885,8 @@ dialog label{display:flex;align-items:center;gap:8px}
     draggingSplit: false,
     suppressClick: false,
     dragWall: null,
+    selectedPart: null,
+    hoverCorner: null,
     toolSettings: {
       wallExterior:{thickness:.32,height:2.8,label:"Mur extérieur"},
       wallBearing:{thickness:.20,height:2.8,label:"Mur porteur"},
@@ -857,8 +908,8 @@ dialog label{display:flex;align-items:center;gap:8px}
     updateZoomLabel();
     redraw();
 
-    // Quelques éléments de démonstration utiles pour tester la transparence.
-    app.model.elements.push(
+    // Show the foundation example only for a genuinely empty project.
+    if(app.model.elements.length===0)app.model.elements.push(
       {id:"demo-f1",mode:"construction",levelId:"foundations",type:"foundation",a:{x:-4,y:-3},b:{x:4,y:-3},thickness:.5,height:.5},
       {id:"demo-f2",mode:"construction",levelId:"foundations",type:"foundation",a:{x:4,y:-3},b:{x:4,y:3},thickness:.5,height:.5},
       {id:"demo-f3",mode:"construction",levelId:"foundations",type:"foundation",a:{x:4,y:3},b:{x:-4,y:3},thickness:.5,height:.5},
@@ -871,6 +922,9 @@ dialog label{display:flex;align-items:center;gap:8px}
     $$(".tool").forEach(btn=>btn.addEventListener("click",()=>{
       $$(".tool").forEach(b=>b.classList.remove("active"));
       btn.classList.add("active");
+      cancelPlanDrag();
+      app.selectedPart=null;app.hoverCorner=null;
+      $("#planCanvas").classList.remove("hover-wall","hover-corner");
       app.activeTool=btn.dataset.tool;
       app.drawingStart=null;
       app.selectedElement=null;
@@ -938,11 +992,19 @@ dialog label{display:flex;align-items:center;gap:8px}
     canvas.addEventListener("pointerdown",onPlanPointerDown);
     canvas.addEventListener("pointermove",onPlanMove);
     canvas.addEventListener("pointerup",onPlanPointerUp);
-    canvas.addEventListener("pointercancel",onPlanPointerUp);
+    canvas.addEventListener("pointercancel",cancelPlanDrag);
+    canvas.addEventListener("lostpointercapture",()=>{if(app.dragWall)cancelPlanDrag();});
+    canvas.addEventListener("pointerleave",()=>{
+      if(app.dragWall)return;
+      app.hoverCorner=null;canvas.classList.remove("hover-corner","hover-wall");redraw();
+    });
+    window.addEventListener("blur",cancelPlanDrag);
     canvas.addEventListener("click",onPlanClick);
     canvas.addEventListener("dblclick",onPlanDblClick);
     canvas.addEventListener("wheel",e=>{
       e.preventDefault();
+      // Do not change the coordinate transform halfway through a captured drag.
+      if(app.dragWall)return;
 
       // Trackpad Mac : un geste normal à deux doigts DÉPLACE le plan.
       // Le zoom n'est déclenché que par Ctrl/⌘ + geste à deux doigts
@@ -974,7 +1036,7 @@ dialog label{display:flex;align-items:center;gap:8px}
     });
 
     window.addEventListener("keydown",e=>{
-      if(e.key==="Escape"){app.drawingStart=null;redraw();}
+      if(e.key==="Escape"){cancelPlanDrag();app.drawingStart=null;redraw();}
       if((e.key==="Delete"||e.key==="Backspace")&&app.selectedElement && !["INPUT","SELECT","TEXTAREA"].includes(document.activeElement.tagName)){
         app.model.deleteElement(app.selectedElement.id);app.selectedElement=null;hideProperties();redraw();
       }
@@ -1071,71 +1133,153 @@ dialog label{display:flex;align-items:center;gap:8px}
     return {x:Math.round(p.x*20)/20,y:Math.round(p.y*20)/20};
   }
 
+  const EDITABLE_WALL_TYPES=new Set(["wallExterior","wallBearing","partition","foundation","beam"]);
+  const MIN_EDIT_LENGTH=.05;
   function pointNear(a,b,eps=.004){return Math.hypot(a.x-b.x,a.y-b.y)<=eps;}
+  function isEditableWall(el){return el && el.mode==="construction" && el.a && el.b && EDITABLE_WALL_TYPES.has(el.type);}
+  function planScreenPoint(e){
+    const r=$("#planCanvas").getBoundingClientRect();
+    return {x:e.clientX-r.left,y:e.clientY-r.top};
+  }
+  function setEditStatus(wall){
+    const len=Math.hypot(wall.b.x-wall.a.x,wall.b.y-wall.a.y);
+    const angle=(Math.atan2(wall.b.y-wall.a.y,wall.b.x-wall.a.x)*180/Math.PI+360)%360;
+    $("#statusMeasure").textContent=`Longueur : ${formatM(len)} · Angle : ${angle.toFixed(1)}°`;
+    $("#statusSelection").textContent=app.selectedPart?"Coin sélectionné · les autres extrémités restent fixes":"Mur entier sélectionné";
+  }
 
   function onPlanPointerDown(e){
-    if(app.activeTool!=="select" || e.button!==0) return;
-    const hit=app.renderer2d.hitTest({x:e.offsetX,y:e.offsetY});
-    if(!hit || !hit.a || !hit.b) return;
-
+    if(app.activeTool!=="select" || e.button!==0 || e.isPrimary===false)return;
+    if(app.dragWall)cancelPlanDrag();
+    app.suppressClick=false;
+    const screen=planScreenPoint(e);
+    // Endpoints take precedence over wall bodies, even before selecting a wall.
+    const corner=app.renderer2d.hitTestCorner(screen,e.pointerType);
+    const hit=corner?.element ?? app.renderer2d.hitTest(screen);
+    app.hoverCorner=null;
+    app.selectedPart=corner?.end ?? null;
+    if(!hit || !hit.a || !hit.b)return;
     app.selectedElement=hit;
     showProperties(hit);
-    const start=app.renderer2d.screenToWorld({x:e.offsetX,y:e.offsetY});
-    const originalA={...hit.a}, originalB={...hit.b};
-    const connected=[];
-    for(const other of app.model.elements){
-      if(other.id===hit.id || other.levelId!==hit.levelId || !other.a || !other.b) continue;
-      if(pointNear(other.a,originalA)) connected.push({id:other.id,end:"a",origin:{...other.a},anchor:"a"});
-      if(pointNear(other.b,originalA)) connected.push({id:other.id,end:"b",origin:{...other.b},anchor:"a"});
-      if(pointNear(other.a,originalB)) connected.push({id:other.id,end:"a",origin:{...other.a},anchor:"b"});
-      if(pointNear(other.b,originalB)) connected.push({id:other.id,end:"b",origin:{...other.b},anchor:"b"});
+    const originalA={...hit.a},originalB={...hit.b};
+    const anchors=corner?[corner.end]:["a","b"],connected=[];
+    if(isEditableWall(hit)){
+      for(const other of app.model.elements){
+        if(other.id===hit.id || other.levelId!==hit.levelId || !isEditableWall(other))continue;
+        for(const end of ["a","b"]){
+          for(const anchor of anchors){
+            if(pointNear(other[end],hit[anchor])){
+              connected.push({id:other.id,end,origin:{...other[end]},anchor});break;
+            }
+          }
+        }
+      }
     }
-    app.model.commit();
-    app.dragWall={id:hit.id,start,originalA,originalB,connected,moved:false};
+    app.dragWall={
+      id:hit.id,kind:corner?"corner":"wall",end:corner?.end ?? null,
+      pointerId:e.pointerId,screenStart:screen,
+      start:app.renderer2d.screenToWorld(screen),originalA,originalB,connected,
+      moved:false,historyBefore:null,futureBefore:null
+    };
     e.currentTarget.setPointerCapture?.(e.pointerId);
-    e.currentTarget.classList.add("dragging-wall");
+    e.currentTarget.classList.remove("hover-wall","hover-corner");
+    e.currentTarget.classList.add(corner?"dragging-corner":"dragging-wall");
+    setEditStatus(hit);redraw();
+  }
+
+  function clearPlanDrag(d){
+    const canvas=$("#planCanvas");
+    app.dragWall=null;app.hoverCorner=null;
+    canvas.classList.remove("dragging-wall","dragging-corner","hover-corner","hover-wall");
+    // Ignore only the synthetic click that belongs to this gesture.
+    app.suppressClick=true;
+    setTimeout(()=>{app.suppressClick=false;},0);
+    if(canvas.hasPointerCapture?.(d.pointerId))canvas.releasePointerCapture(d.pointerId);
+  }
+
+  function cancelPlanDrag(){
+    const d=app.dragWall;if(!d)return;
+    const wall=app.model.elements.find(e=>e.id===d.id);
+    if(wall){wall.a={...d.originalA};wall.b={...d.originalB};}
+    for(const c of d.connected){
+      const other=app.model.elements.find(e=>e.id===c.id);
+      if(other)other[c.end]={...c.origin};
+    }
+    if(d.moved){app.model.history=d.historyBefore;app.model.future=d.futureBefore;}
+    clearPlanDrag(d);
+    if(wall){app.selectedElement=wall;showProperties(wall);setEditStatus(wall);}
+    redraw();
   }
 
   function onPlanPointerUp(e){
-    if(!app.dragWall) return;
-    if(app.dragWall.moved) app.suppressClick=true;
-    app.dragWall=null;
-    e.currentTarget.classList.remove("dragging-wall");
+    const d=app.dragWall;
+    if(!d || e.pointerId!==d.pointerId)return;
+    updateDraggedWall(e);
+    const wall=app.model.elements.find(el=>el.id===d.id);
+    // Returning to the starting position is not an undoable modification.
+    if(d.moved && wall && pointNear(wall.a,d.originalA,1e-9) && pointNear(wall.b,d.originalB,1e-9)){
+      cancelPlanDrag();return;
+    }
+    clearPlanDrag(d);
+    if(wall){showProperties(wall);setEditStatus(wall);}
     redraw();
   }
 
   function updateDraggedWall(e){
     const d=app.dragWall;
-    if(!d) return false;
-    const now=app.renderer2d.screenToWorld({x:e.offsetX,y:e.offsetY});
-    const dx=now.x-d.start.x, dy=now.y-d.start.y;
-    if(Math.hypot(dx,dy)>.01)d.moved=true;
-    const wall=app.model.elements.find(x=>x.id===d.id);
+    if(!d || e.pointerId!==d.pointerId)return false;
+    const screen=planScreenPoint(e);
+    // A click selects only: no micro-movement, no extra undo entry.
+    if(!d.moved && Math.hypot(screen.x-d.screenStart.x,screen.y-d.screenStart.y)<3)return false;
+    const now=app.renderer2d.screenToWorld(screen);
+    const dx=now.x-d.start.x,dy=now.y-d.start.y;
+    const wall=app.model.elements.find(el=>el.id===d.id);
     if(!wall)return false;
-    wall.a={x:d.originalA.x+dx,y:d.originalA.y+dy};
-    wall.b={x:d.originalB.x+dx,y:d.originalB.y+dy};
+    const nextA={...d.originalA},nextB={...d.originalB};
+    if(d.kind==="wall" || d.end==="a"){nextA.x+=dx;nextA.y+=dy;}
+    if(d.kind==="wall" || d.end==="b"){nextB.x+=dx;nextB.y+=dy;}
+    // Keep very short existing segments editable without allowing a collapse.
+    const minLength=Math.min(MIN_EDIT_LENGTH,Math.hypot(d.originalB.x-d.originalA.x,d.originalB.y-d.originalA.y));
+    if(Math.hypot(nextB.x-nextA.x,nextB.y-nextA.y)<minLength-1e-9)return false;
+    const updates=new Map();
     for(const c of d.connected){
-      const other=app.model.elements.find(x=>x.id===c.id);if(!other)continue;
-      const base=c.anchor==="a"?d.originalA:d.originalB;
-      other[c.end]={x:base.x+dx,y:base.y+dy};
+      const other=app.model.elements.find(el=>el.id===c.id);if(!other)continue;
+      const pending=updates.get(other.id)||{element:other,a:{...other.a},b:{...other.b}};
+      // Preserve the initial small tolerance offset without moving the far end.
+      pending[c.end]={x:c.origin.x+dx,y:c.origin.y+dy};updates.set(other.id,pending);
     }
-    app.selectedElement=wall;
-    showProperties(wall);
-    redraw();
-    return true;
+    for(const p of updates.values()){
+      const originalLength=Math.hypot(p.element.b.x-p.element.a.x,p.element.b.y-p.element.a.y);
+      if(Math.hypot(p.b.x-p.a.x,p.b.y-p.a.y)<Math.min(MIN_EDIT_LENGTH,originalLength)-1e-9)return false;
+    }
+    if(!d.moved){
+      d.historyBefore=app.model.history.slice();d.futureBefore=app.model.future.slice();
+      app.model.commit();d.moved=true;
+    }
+    wall.a=nextA;wall.b=nextB;
+    for(const p of updates.values()){p.element.a=p.a;p.element.b=p.b;}
+    app.selectedElement=wall;app.pointerWorld=now;
+    showProperties(wall);setEditStatus(wall);
+    $("#statusCoords").textContent=`X: ${formatM(now.x)} · Y: ${formatM(now.y)}`;
+    redraw();return true;
   }
 
   function onPlanMove(e){
     if(app.dragWall){updateDraggedWall(e);return;}
-
-    const raw=app.renderer2d.screenToWorld({x:e.offsetX,y:e.offsetY});
+    const screen=planScreenPoint(e),raw=app.renderer2d.screenToWorld(screen);
     app.pointerWorld=snapPoint(raw);
+    const corner=app.activeTool==="select"?app.renderer2d.hitTestCorner(screen,e.pointerType):null;
+    app.hoverCorner=corner?{id:corner.element.id,end:corner.end}:null;
+    const body=app.activeTool==="select"&&!corner?app.renderer2d.hitTest(screen):null;
+    e.currentTarget.classList.toggle("hover-corner",!!corner);
+    e.currentTarget.classList.toggle("hover-wall",!!body?.a);
     $("#statusCoords").textContent=`X: ${formatM(app.pointerWorld.x)} · Y: ${formatM(app.pointerWorld.y)}`;
     if(app.drawingStart){
       const dx=app.pointerWorld.x-app.drawingStart.x,dy=app.pointerWorld.y-app.drawingStart.y;
       const len=Math.hypot(dx,dy),angle=(Math.atan2(dy,dx)*180/Math.PI+360)%360;
       $("#statusMeasure").textContent=`Longueur: ${formatM(len)} · Angle: ${angle.toFixed(1)}°`;
-    }else $("#statusMeasure").textContent="Longueur: — · Angle: —";
+    }else if(app.selectedElement?.a){setEditStatus(app.selectedElement);}
+    else $("#statusMeasure").textContent="Longueur: — · Angle: —";
     redraw();
   }
 
@@ -1143,8 +1287,11 @@ dialog label{display:flex;align-items:center;gap:8px}
     if(app.suppressClick){app.suppressClick=false;return;}
     const p=snapPoint(app.renderer2d.screenToWorld({x:e.offsetX,y:e.offsetY}));
     if(app.activeTool==="select"){
-      app.selectedElement=app.renderer2d.hitTest({x:e.offsetX,y:e.offsetY});
-      if(app.selectedElement)showProperties(app.selectedElement);else hideProperties();
+      const screen=planScreenPoint(e);
+      const corner=app.renderer2d.hitTestCorner(screen,e.pointerType);
+      app.selectedPart=corner?.end ?? null;
+      app.selectedElement=corner?.element ?? app.renderer2d.hitTest(screen);
+      if(app.selectedElement){showProperties(app.selectedElement);if(app.selectedElement.a)setEditStatus(app.selectedElement);}else hideProperties();
       redraw();return;
     }
 
@@ -1194,7 +1341,7 @@ dialog label{display:flex;align-items:center;gap:8px}
       html+=propNumber("Longueur","length",len,.01,"m");
       if(el.thickness!=null) html+=propNumber("Épaisseur","thickness",el.thickness,.01,"m");
       if(el.height!=null) html+=propNumber("Hauteur","height",el.height,.01,"m");
-      html+=`<div class="prop-help">Vous pouvez aussi faire glisser directement le mur dans le plan. Les jonctions raccordées suivent ses extrémités.</div>`;
+      html+=`<div class="prop-help">Rond à une extrémité : déplace ce coin et les murs raccordés, sans déplacer les autres extrémités. Corps du mur : déplace le mur entier. Échap annule le geste.</div>`;
     }else{
       html+=propNumber("X","x",el.x,.01,"m")+propNumber("Y","y",el.y,.01,"m");
       if(el.width!=null) html+=propNumber("Largeur","width",el.width,.01,"m");
@@ -1227,6 +1374,7 @@ dialog label{display:flex;align-items:center;gap:8px}
 
   function hideProperties(){
     $("#propertiesPanel").classList.add("hidden");
+    app.selectedPart=null;app.hoverCorner=null;
     $("#statusSelection").textContent="Aucun élément sélectionné";
   }
 
