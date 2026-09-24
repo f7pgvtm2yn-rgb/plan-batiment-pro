@@ -91,7 +91,10 @@ function floorReport(m,c,G,S){
  let core=positive(c.slabThickness,null),width=null,blocked=false;
  if(c.system==='wood'){
   const first=faces.map((face,i)=>{const p=pairModel(baseModel,face,orientedStudy,i,G,S),bay=S.floorReport(p.model,p.f);bay.direction=orientation?.directions?.[i];bay.faceIndex=i;return bay;});
-  if(first.some(b=>!b.suggestion||b.blocked||!b.check?.screened)){blocked=true;r.issues.push(issue('Solivage suspendu : hypothèses, reprise de charges, trémie ou section d’essai à vérifier.',true));}
+  // The first pass uses a temporary upper elevation only to size the section.
+  // A provisional support-z mismatch must not block section search here.
+  const firstHardError=b=>(b.issues||[]).some(i=>i.severity==='error'&&i.code!=='support-z');
+  if(first.some(b=>!b.suggestion||firstHardError(b)||!b.check?.screened)){blocked=true;r.issues.push(issue('Solivage suspendu : hypothèses, reprise de charges, trémie ou section d’essai à vérifier.',true));}
   core=first.reduce((h,b)=>Math.max(h,b.suggestion?.h||0),0);width=first.reduce((b,r)=>Math.max(b,r.suggestion?.b||0),0);
   r.bays=first;
   if(!core||!width){r.issues.push(...first.flatMap(b=>b.issues.filter(i=>i.severity==='error')));return r;}
