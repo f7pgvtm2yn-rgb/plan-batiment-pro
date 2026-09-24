@@ -1,4 +1,4 @@
-/* v0.10.17 foundations UI — location + NF P94-261/Eurocode 7 + NF DTU 13.1 prestudy chain. */
+/* v0.11.0 foundations UI — location + NF P94-261/Eurocode 7 + NF DTU 13.1 prestudy chain. */
 (function(){
 'use strict';
 const F=window.PBPFoundations,app=window.planApp;
@@ -192,7 +192,7 @@ function init(){
     if(app.model.foundationAutomation.enabled){app.overlay.foundations=true;$('#overlayFoundations').checked=true;}
     cacheKey='';dlg.close();refresh();
   });
-  document.title='Plan Bâtiment Pro — v0.10.17';$('.version').textContent='v0.10.17';
+  document.title='Plan Bâtiment Pro — v0.11.0';$('.version').textContent='v0.11.0';
   panelReady=true;window.PBPFoundationReady=true;refresh();
 }
 function open(){
