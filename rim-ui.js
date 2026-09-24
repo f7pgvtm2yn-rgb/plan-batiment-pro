@@ -20,7 +20,7 @@ function decorate(){
 function init(){
  if(!$('#jwBody'))throw Error('Assistant de solivage absent.');
  new MutationObserver(decorate).observe($('#jwBody'),{childList:true,subtree:true});
- $('.version').textContent='v0.12.0';document.title='Plan Bâtiment Pro — v0.12.0';
+ $('.version').textContent='v0.12.1';document.title='Plan Bâtiment Pro — v0.12.1';
  window.PBPRimUIReady=true;decorate();
 }
 if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',init);else init();
