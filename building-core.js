@@ -16,17 +16,23 @@ function sideOverlap(a,b,G){
  return Math.max(0,Math.min(la,Math.max(x1,x2))-Math.max(0,Math.min(x1,x2)));
 }
 function orientationPlan(faces,c,G){
- const n=faces.length,preferred=[],spans=[];
- for(const f of faces){const s=[G.dist(f.points[0],f.points[3]),G.dist(f.points[1],f.points[0])];spans.push(s);const short=s[0]<=s[1]?0:1;preferred.push(c.invert?1-short:short);}
+ const n=faces.length,shortPreferred=[],spans=[];
+ for(const f of faces){const s=[G.dist(f.points[0],f.points[3]),G.dist(f.points[1],f.points[0])];spans.push(s);shortPreferred.push(s[0]<=s[1]?0:1);}
  const links=[];
  for(let i=0;i<n;i++)for(let j=i+1;j<n;j++)for(let si=0;si<4;si++)for(let sj=0;sj<4;sj++){const overlap=sideOverlap(faces[i].sides[si],faces[j].sides[sj],G);if(overlap>.02)links.push({i,j,si,sj,overlap});}
  const mismatch=(dirs,l)=>((l.si%2===dirs[l.i])!==(l.sj%2===dirs[l.j]));
- const score=dirs=>{let cost=0;for(let i=0;i<n;i++){const min=Math.max(1e-6,Math.min(...spans[i]));cost+=(spans[i][dirs[i]]/min-1)*4+(dirs[i]!==preferred[i]?.25:0);}for(const l of links)if(mismatch(dirs,l))cost+=10000+l.overlap*100;return cost;};
- let best=[...preferred],bestScore=score(best);
- if(n<=18){const total=1<<n;for(let mask=0;mask<total;mask++){const dirs=Array.from({length:n},(_,i)=>(mask>>i)&1),s=score(dirs);if(s<bestScore-1e-9){best=dirs;bestScore=s;}}}
- else{let changed=true,guard=0;while(changed&&guard++<n*4){changed=false;for(let i=0;i<n;i++){const next=[...best];next[i]=1-next[i];const s=score(next);if(s<bestScore-1e-9){best=next;bestScore=s;changed=true;}}}}
- const conflicts=links.filter(l=>mismatch(best,l));
- return {directions:best,preferredDirections:preferred,changedIndices:best.map((d,i)=>d!==preferred[i]?i:null).filter(i=>i!==null),conflicts,links};
+ // First solve the coherent "short spans" variant. The alternative variant is
+ // its global inverse. Inverting all bay directions preserves every shared-wall
+ // compatibility constraint, so both buttons always produce distinct previews
+ // whenever at least one rectangular bay exists.
+ const scoreShort=dirs=>{let cost=0;for(let i=0;i<n;i++){const min=Math.max(1e-6,Math.min(...spans[i]));cost+=(spans[i][dirs[i]]/min-1)*4+(dirs[i]!==shortPreferred[i]?.25:0);}for(const l of links)if(mismatch(dirs,l))cost+=10000+l.overlap*100;return cost;};
+ let bestShort=[...shortPreferred],bestScore=scoreShort(bestShort);
+ if(n<=18){const total=1<<n;for(let mask=0;mask<total;mask++){const dirs=Array.from({length:n},(_,i)=>(mask>>i)&1),s=scoreShort(dirs);if(s<bestScore-1e-9){bestShort=dirs;bestScore=s;}}}
+ else{let changed=true,guard=0;while(changed&&guard++<n*4){changed=false;for(let i=0;i<n;i++){const next=[...bestShort];next[i]=1-next[i];const s=scoreShort(next);if(s<bestScore-1e-9){bestShort=next;bestScore=s;changed=true;}}}}
+ const preferred=c.invert?shortPreferred.map(d=>1-d):shortPreferred;
+ const directions=c.invert?bestShort.map(d=>1-d):bestShort;
+ const conflicts=links.filter(l=>mismatch(directions,l));
+ return {directions,preferredDirections:preferred,shortDirections:bestShort,variant:c.invert?'opposite':'short',changedIndices:directions.map((d,i)=>d!==preferred[i]?i:null).filter(i=>i!==null),conflicts,links};
 }
 function techReport(input){
  const t={...technical(),...input},issues=[],values=[];let complete=true;
