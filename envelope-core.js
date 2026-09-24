@@ -41,7 +41,7 @@ function visual(model,q){
  function line(role,offset,t){if(!(t>0))return;const c=offset+side*t/2,p=mul(n,c);es.push({id:TAG+':'+a.id+':'+role,generator:TAG,mode:'construction',levelId:a.levelId,type:'beam',role,a:add(h.a,p),b:add(h.b,p),thickness:t,height:H,zBase:z,locked:true,designStatus:'prestudy',hostId:h.id});}
  if(a.kind==='iti'||a.kind==='acoustic'||a.kind==='mixed'){const t=li.inside+li.boardIn;line(a.kind==='acoustic'?'acousticLining':'liningInside',side*(wallT/2),t);}
  if(a.kind==='ite'||a.kind==='mixed'){const t=li.outside+li.boardOut;line('liningOutside',-side*(wallT/2),t);}
- if(a.kind==='partition'){const t=Math.max(a.studDepth,li.inside+li.boardIn+li.boardOut);line('drywallPartition',0,t);}
+ if(a.kind==='partition'){const t=Math.max(a.studDepth,li.inside+li.boardIn+li.boardOut);line('drywallPartition',-side*t/2,t);}
  return es;
 }
 function report(model){const s=settings(model.envelopeDesign),rows=s.assemblies.map(a=>quantity(model,a)),elements=rows.flatMap(q=>visual(model,q)),hiddenHostIds=rows.filter(q=>q.assembly.kind==='partition'&&q.host).map(q=>q.host.id);return{settings:s,rows,elements,hiddenHostIds,issues:rows.flatMap(q=>q.issues.map(i=>({...i,assemblyId:q.assembly.id})))};}
