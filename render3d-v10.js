@@ -1,7 +1,38 @@
-/* v0.10 depth-buffered solid rendering. Drawing only: model altitudes unchanged. */
+/* v0.10.14 depth-buffered solid rendering.
+   Visual cleanup only: model geometry, dimensions and structural calculations are unchanged. */
 (function(){'use strict';const C=PBPPrecision,G=PBPGeometry,app=planApp,$=s=>document.querySelector(s),fallback=ConstructionRenderer3D.prototype.draw;
 const palette={concrete:'#a7afb5',brick:'#c08d79',block:'#b2b4af',timber:'#bd9b69',panel:'#cfb88c',insulation:'#e7d793',ravoirage:'#c3b9a7',screed:'#b8b8ae',finish:'#d1c1ad',ceiling:'#e2e5e8',joists:'#ad8654'};
 const rgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255);
+const VIS_EPS=.002;
+const clonePoint=p=>({x:Number(p.x),y:Number(p.y)});
+function cleanPolygon(points){
+ const a=[];for(const p of points||[]){if(!C.point(p))continue;if(!a.length||C.dist(p,a[a.length-1])>1e-6)a.push(clonePoint(p));}
+ if(a.length>2&&C.dist(a[0],a[a.length-1])<1e-6)a.pop();
+ let changed=true,guard=0;while(changed&&a.length>3&&guard++<20){changed=false;for(let i=0;i<a.length;i++){const p=a[(i+a.length-1)%a.length],q=a[i],r=a[(i+1)%a.length],u=C.sub(q,p),v=C.sub(r,q),lu=Math.hypot(u.x,u.y),lv=Math.hypot(v.x,v.y);if(lu<1e-6||lv<1e-6||Math.abs(C.cross(u,v))<1e-8*lu*lv&&C.dot(u,v)>0){a.splice(i,1);changed=true;break;}}}
+ return a;
+}
+function pointOnSegmentProjection(p,e){
+ const v=C.sub(e.b,e.a),L2=C.dot(v,v);if(!(L2>1e-10))return null;const t=C.dot(C.sub(p,e.a),v)/L2;if(t<-.03/Math.sqrt(L2)||t>1+.03/Math.sqrt(L2))return null;return C.add(e.a,C.mul(v,Math.max(0,Math.min(1,t))));
+}
+function elementZ(e,ls){const l=ls.get(e.levelId);return Number.isFinite(e.zBase)?Number(e.zBase):Number(l?.elevation);}
+function trimJoistForDisplay(e,data,bearingWalls){
+ if(!e?.a||!e?.b)return e;const ab=C.sub(e.b,e.a),L=Math.hypot(ab.x,ab.y);if(L<.05)return e;const u={x:ab.x/L,y:ab.y/L},z=elementZ(e,data.ls),next={...e,a:clonePoint(e.a),b:clonePoint(e.b)};
+ for(const end of ['a','b']){
+  const p=e[end],inside=end==='a'?u:C.mul(u,-1);let best=null;
+  for(const w of bearingWalls){
+   const wz=elementZ(w,data.ls),wh=Number(w.height),t=Number(w.thickness);if(!Number.isFinite(wz)||!(wh>0)||!(t>0)||Math.abs(wz+wh-z)>.06)continue;
+   const q=pointOnSegmentProjection(p,w);if(!q)continue;const d=C.dist(p,q);if(d>t/2+.04)continue;
+   const wu=C.unit(C.sub(w.b,w.a));if(!wu||Math.abs(C.dot(wu,inside))>.35)continue;
+   if(!best||d<best.d)best={w,q,d,t};
+  }
+  if(best)next[end]=C.add(best.q,C.mul(inside,best.t/2+VIS_EPS));
+ }
+ if(C.dist(next.a,next.b)<.04)return e;return next;
+}
+function convexHull(points){
+ const ps=[...new Map(points.map(p=>[(Math.round(p.x*1e6))+':'+(Math.round(p.y*1e6)),p])).values()].sort((a,b)=>a.x-b.x||a.y-b.y);if(ps.length<3)return ps;
+ const cr=(o,a,b)=>C.cross(C.sub(a,o),C.sub(b,o)),lo=[],hi=[];for(const p of ps){while(lo.length>1&&cr(lo.at(-2),lo.at(-1),p)<=1e-10)lo.pop();lo.push(p);}for(let i=ps.length-1;i>=0;i--){const p=ps[i];while(hi.length>1&&cr(hi.at(-2),hi.at(-1),p)<=1e-10)hi.pop();hi.push(p);}lo.pop();hi.pop();return lo.concat(hi);
+}
 function initGL(renderer){const canvas=document.createElement('canvas'),gl=canvas.getContext('webgl',{antialias:true,alpha:false,depth:true,preserveDrawingBuffer:true});if(!gl)return null;
  const shader=(type,source)=>{const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s;};
  const program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,'attribute vec3 p;attribute vec3 color;varying vec3 v;uniform vec4 view;uniform vec3 size;void main(){float x=p.x*view.x-p.y*view.y;float y=p.x*view.y+p.y*view.x;gl_Position=vec4(x*size.x,(p.z*view.w-y*view.z)*size.y-0.24,-(y*view.w+p.z*view.z)/size.z,1.0);v=color;}'));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,'precision mediump float;varying vec3 v;void main(){gl_FragColor=vec4(v,1.0);}'));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));
@@ -11,7 +42,7 @@ function scene(m,show){const b=PBPBuildingUI.getReport(),s=PBPStructureUI.getRep
  return {levels,vis,ls,elements};}
 function mesh(data){const triangles=[],lines=[],issues=[];let maxDepth=30;
  const put=(arr,p,c)=>{maxDepth=Math.max(maxDepth,Math.abs(p[0])+Math.abs(p[1])+Math.abs(p[2])+10);arr.push(...p,...c);};
- function prism(points,z,h,color,wire=false){if(!Number.isFinite(z)||!(h>0)||points.length<3||!points.every(C.point))return;let ps=C.area(points)<0?points.slice().reverse():points;const base=rgb(color),colorFor=n=>{const v=.68+.27*Math.max(0,n[0]*.30+n[1]*-.4+n[2]*.866);return base.map(c=>Math.min(1,c*v));};
+ function prism(points,z,h,color,wire=false){if(!Number.isFinite(z)||!(h>0))return;let ps=cleanPolygon(points);if(ps.length<3||Math.abs(C.area(ps))<1e-7)return;if(C.area(ps)<0)ps=ps.slice().reverse();const base=rgb(color),colorFor=n=>{const v=.68+.27*Math.max(0,n[0]*.30+n[1]*-.4+n[2]*.866);return base.map(c=>Math.min(1,c*v));};
  if(wire){for(const alt of [z,z+h])for(let i=0;i<ps.length;i++){const j=(i+1)%ps.length;put(lines,[ps[i].x,ps[i].y,alt],[.56,.64,.69]);put(lines,[ps[j].x,ps[j].y,alt],[.56,.64,.69]);}return;}
  const top=C.triangulate(ps);for(const tri of top){for(const p of tri)put(triangles,[p.x,p.y,z+h],colorFor([0,0,1]));for(const p of tri)put(triangles,[p.x,p.y,z],colorFor([0,0,-1]));}
  for(let i=0;i<ps.length;i++){const a=ps[i],b=ps[(i+1)%ps.length],v=C.unit(C.sub(b,a));if(!v)continue;const col=colorFor([v.y,-v.x,0]);for(const p of [[a.x,a.y,z],[b.x,b.y,z],[b.x,b.y,z+h],[a.x,a.y,z],[b.x,b.y,z+h],[a.x,a.y,z+h]])put(triangles,p,col);}}
@@ -19,10 +50,22 @@ function mesh(data){const triangles=[],lines=[],issues=[];let maxDepth=30;
  const paint=w=>palette[w.e.role]||palette[w.e.materialSpec?.type]||(w.e.type==='foundation'||w.e.foundationRole?'#999fa5':w.e.type==='partition'?'#ccd2d7':'#b3c0c8');
  for(const l of data.levels){const group=ordinary.filter(e=>e.levelId===l.id);if(!group.length)continue;const zs=[...new Set(group.flatMap(e=>{const z=Number.isFinite(e.zBase)?e.zBase:l.elevation;return[z,z+Number(e.height)];}).filter(Number.isFinite))].sort((a,b)=>a-b);if(zs.length>160){issues.push('Géométrie très détaillée : raccords simplifiés');for(const w of C.footprints(group,data.levels))prism(w.ps,w.z,w.h,paint(w));continue;}
  for(let i=0;i<zs.length-1;i++){const lo=zs[i],hi=zs[i+1];if(hi-lo<1e-7)continue;const band=group.filter(e=>{const z=Number.isFinite(e.zBase)?e.zBase:l.elevation;return z<hi-1e-7&&z+Number(e.height)>lo+1e-7;}).map(e=>({...e,zBase:lo,height:hi-lo}));for(const w of C.footprints(band,data.levels))prism(w.ps,w.z,w.h,paint(w));}}
- for(const w of C.footprints(joists,data.levels))prism(w.ps,w.z,w.h,palette.joists);
+ // Trim only the DISPLAY geometry of joist ends back to the visible inner face
+ // of supporting walls. The calculated bearing length remains unchanged in the model.
+ const bearingWalls=ordinary.filter(e=>['wallExterior','wallBearing'].includes(e.type)&&e.a&&e.b);
+ const visualJoists=joists.map(e=>trimJoistForDisplay(e,data,bearingWalls));
+ for(const w of C.footprints(visualJoists,data.levels))prism(w.ps,w.z,w.h,palette.joists);
+
+ // Multi-wall nodes (T/cross junctions) are not handled by the two-wall miter
+ // routine. Add a tiny union cap at those nodes to remove angle holes/slivers.
+ const joinWalls=ordinary.filter(e=>['wallExterior','wallBearing','partition'].includes(e.type)&&e.a&&e.b&&Number(e.thickness)>0);
+ const nodes=[];
+ for(const e of joinWalls){const z=elementZ(e,data.ls),h=Number(e.height),u=C.unit(C.sub(e.b,e.a));if(!u||!Number.isFinite(z)||!(h>0))continue;for(const end of ['a','b']){const p=e[end];let n=nodes.find(n=>n.levelId===e.levelId&&Math.abs(n.z-z)<1e-7&&Math.abs(n.h-h)<1e-7&&C.dist(n.p,p)<.004);if(!n){n={p,levelId:e.levelId,z,h,ends:[]};nodes.push(n);}n.ends.push({e,end,u:end==='a'?u:C.mul(u,-1)});}}
+ for(const n of nodes){if(n.ends.length<3)continue;const pts=[];for(const x of n.ends){const half=Number(x.e.thickness)/2,side={x:-x.u.y*half,y:x.u.x*half};pts.push(C.add(n.p,side),C.sub(n.p,side));}const hull=convexHull(pts);if(hull.length>=3&&Math.abs(C.area(hull))<.5){const exterior=n.ends.find(x=>x.e.type==='wallExterior')||n.ends.find(x=>x.e.type==='wallBearing')||n.ends[0];const col=palette[exterior.e.materialSpec?.type]||(exterior.e.type==='partition'?'#ccd2d7':'#b3c0c8');prism(hull,n.z,n.h,col);issues.push('Jonction multi-murs lissée');}}
+
  for(const e of data.elements){if(walls.includes(e))continue;const l=data.ls.get(e.levelId);if(!l)continue;const z=Number.isFinite(e.zBase)?e.zBase:l.elevation,h=Number(e.height);let ps=e.polygon;
  if(!ps&&Number.isFinite(e.x)&&Number.isFinite(e.y)&&Number(e.width)>0&&Number(e.depth)>0){const w=e.width/2,d=e.depth/2;ps=[{x:e.x-w,y:e.y-d},{x:e.x+w,y:e.y-d},{x:e.x+w,y:e.y+d},{x:e.x-w,y:e.y+d}];}
- if(ps)prism(ps,z,h,palette[e.role]||'#b8c1c7',e.void||e.type==='opening');}
+ if(ps){const col=e.role==='rim'?(palette[e.rimMaterial]||'#b3c0c8'):(palette[e.role]||'#b8c1c7');prism(ps,z,h,col,e.void||e.type==='opening');}}
  const grid=20;for(let i=-grid;i<=grid;i++){for(const p of [[i,-grid,0],[i,grid,0],[-grid,i,0],[grid,i,0]])put(lines,p,[.81,.85,.87]);}return {triangles,lines,maxDepth,issues};}
 // Software depth buffer for devices with WebGL disabled. Same mesh and camera;
 // supersampling and downscaling smooth silhouettes without moving the model.
