@@ -16,7 +16,8 @@ function normalize(v){const d={...assemblyDefaults(),...clone(v)};if(!['iti','it
  d.doubleStud=d.doubleStud===true;d.acousticRw=num(d.acousticRw);d.id=String(d.id||'').slice(0,100);d.hostId=String(d.hostId||'').slice(0,100);d.levelId=String(d.levelId||'ground').slice(0,100);d.name=String(d.name||'').slice(0,120);d.acousticReference=String(d.acousticReference||'').slice(0,250);d.systemReference=String(d.systemReference||'').slice(0,250);return d;}
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),unit=v=>{const L=Math.hypot(v.x,v.y);return L>1e-9?{x:v.x/L,y:v.y/L}:null;},add=(a,b)=>({x:a.x+b.x,y:a.y+b.y}),mul=(v,t)=>({x:v.x*t,y:v.y*t});
 function host(model,a){return (model.elements||[]).find(e=>e.id===a.hostId&&e.levelId===a.levelId&&e.a&&e.b&&['wallExterior','wallBearing','partition'].includes(e.type));}
-function openings(model,h){return (model.elements||[]).filter(e=>['door','window'].includes(e.type)&&(e.hostWallId===h.id||e.sourceWallId===h.id));}
+function projectionOnHost(p,h){const vx=h.b.x-h.a.x,vy=h.b.y-h.a.y,L2=vx*vx+vy*vy;if(!(L2>1e-9))return null;const t=((p.x-h.a.x)*vx+(p.y-h.a.y)*vy)/L2,q={x:h.a.x+vx*t,y:h.a.y+vy*t};return{t,q,d:Math.hypot(p.x-q.x,p.y-q.y)};}
+function openings(model,h){return (model.elements||[]).filter(e=>{if(!['door','window'].includes(e.type)||e.levelId!==h.levelId)return false;if(e.hostWallId===h.id||e.sourceWallId===h.id)return true;if(!Number.isFinite(e.x)||!Number.isFinite(e.y))return false;const p=projectionOnHost({x:e.x,y:e.y},h),tol=Math.max(.18,(Number(h.thickness)||.2)/2+.08);return p&&p.t>=-.02&&p.t<=1.02&&p.d<=tol;});}
 function layerInfo(a){
  const inside=['iti','mixed','acoustic','partition'].includes(a.kind)?Math.max(0,a.insulationInside):0,outside=['ite','mixed'].includes(a.kind)?Math.max(0,a.insulationOutside):0;
  const Ri=inside>0&&a.lambdaInside>0?inside/a.lambdaInside:0,Ro=outside>0&&a.lambdaOutside>0?outside/a.lambdaOutside:0;
@@ -25,15 +26,15 @@ function layerInfo(a){
 }
 function quantity(model,input){
  const a=normalize(input),h=host(model,a),issues=[];if(!h)return{assembly:a,host:null,issues:[{severity:'error',text:'Mur support introuvable.'}],complete:false};
- const L=dist(h.a,h.b),H=a.height>0?a.height:Number(h.height)||2.8,gross=L*H,ops=openings(model,h),openingArea=ops.reduce((n,e)=>n+Math.max(0,Number(e.width)||0)*Math.max(0,Number(e.height)||0),0),net=Math.max(0,gross-openingArea);
- if(!ops.length&&(model.elements||[]).some(e=>['door','window'].includes(e.type)&&e.levelId===a.levelId))issues.push({severity:'warning',text:'Ouvertures non liées au mur : elles ne sont pas déduites du métré de cette paroi.'});
- const li=layerInfo(a),spacing=Math.max(.15,a.studSpacing||.6),studBase=Math.ceil(L/spacing)+1,studs=studBase*(a.doubleStud?2:1),rails=2*L;
- const faces=Math.max(0,a.boardsInside)+Math.max(0,a.boardsOutside),boardArea=Math.max(.01,a.boardWidth*a.boardHeight),boardRequired=net*faces*(1+Math.max(0,a.waste)),boards=Math.ceil(boardRequired/boardArea);
+ const L=dist(h.a,h.b),H=a.height>0?a.height:Number(h.height)||2.8,gross=L*H,ops=openings(model,h),openingArea=ops.reduce((n,e)=>n+Math.max(0,Number(e.width)||0)*Math.min(H,Math.max(0,Number(e.height)||0)),0),net=Math.max(0,gross-openingArea);
+ const li=layerInfo(a),spacing=Math.max(.15,a.studSpacing||.6),studBase=Math.floor(L/spacing+1e-9)+1+(Math.abs(L/spacing-Math.round(L/spacing))>1e-7?1:0),jambStuds=ops.length*2,studs=(studBase+jambStuds)*(a.doubleStud?2:1),studLength=studs*H;
+ const doors=ops.filter(e=>e.type==='door'),doorWidths=doors.reduce((n,e)=>n+Math.max(0,Number(e.width)||0),0),railsTop=L,railsBottom=Math.max(0,L-doorWidths),rails=railsTop+railsBottom;
+ const boardArea=Math.max(.01,a.boardWidth*a.boardHeight),loss=1+Math.max(0,a.waste),boardsInside=Math.ceil(net*Math.max(0,a.boardsInside)*loss/boardArea),boardsOutside=Math.ceil(net*Math.max(0,a.boardsOutside)*loss/boardArea),boards=boardsInside+boardsOutside,boardRequired=net*(Math.max(0,a.boardsInside)+Math.max(0,a.boardsOutside))*loss;
  const insulationArea=net*((li.inside>0?1:0)+(li.outside>0?1:0)),insulationVolume=net*(li.inside+li.outside);
  if((li.inside>0&&!(a.lambdaInside>0))||(li.outside>0&&!(a.lambdaOutside>0)))issues.push({severity:'error',text:'Lambda isolant manquant ou invalide : résistance thermique impossible à calculer.'});
  if(['acoustic','partition'].includes(a.kind)&&a.acousticRw===null)issues.push({severity:'warning',text:'Performance acoustique non renseignée : aucune valeur Rw/RA n’est déduite de la seule composition.'});
  if(a.acousticRw!==null&&!a.acousticReference.trim())issues.push({severity:'warning',text:'Rw/RA renseigné sans référence de système ou essai.'});
- return{assembly:a,host:h,L,H,grossArea:gross,openingArea,netArea:net,studs,studBase,rails,boards,boardRequired,insulationArea,insulationVolume,thermalR:li.R,layers:li,issues,complete:!issues.some(i=>i.severity==='error')};
+ return{assembly:a,host:h,L,H,grossArea:gross,openingArea,netArea:net,openings:ops,studs,studBase,jambStuds,studLength,rails,railsTop,railsBottom,boards,boardsInside,boardsOutside,boardRequired,insulationArea,insulationVolume,thermalR:li.R,layers:li,issues,complete:!issues.some(i=>i.severity==='error')};
 }
 function visual(model,q){
  if(!q.host)return[];const a=q.assembly,h=q.host,u=unit({x:h.b.x-h.a.x,y:h.b.y-h.a.y});if(!u)return[];const n={x:-u.y,y:u.x},wallT=Number(h.thickness)||.2,li=q.layers,side=a.side;
