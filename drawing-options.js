@@ -1,4 +1,4 @@
-/* Drawing toolbar v0.10.10. Display only: no structural dimensions are changed. */
+/* Drawing toolbar v0.10.11. Display only: no structural dimensions are changed. */
 (function(root){
 'use strict';
 const TYPES=new Set(['wallExterior','wallBearing','partition','beam','foundation']);
@@ -181,7 +181,7 @@ function init(){
   $('[data-tool="dimension"]')?.addEventListener('click',revealMeasure);
   new ResizeObserver(()=>{if(!panel.hidden)panel.style.top=(bar.getBoundingClientRect().height+6)+'px';}).observe(bar);
   document.querySelectorAll('.view-btn').forEach(b=>b.addEventListener('click',()=>{if(!scheduled){scheduled=true;requestAnimationFrame(()=>{scheduled=false;syncUI();});}}));
-  $('.version').textContent='v0.10.10';document.title='Plan Bâtiment Pro — v0.10.10';
+  $('.version').textContent='v0.10.11';document.title='Plan Bâtiment Pro — v0.10.11';
   ready=true;root.PBPDrawingReady=true;api.refresh=refresh;api.getLayout=()=>lastLayout.map(x=>({...x,rect:{...x.rect}}));api.getSettings=current;
   syncUI();app.renderer2d?.resize();app.renderer3d?.resize();
 }
