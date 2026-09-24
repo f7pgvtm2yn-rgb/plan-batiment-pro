@@ -1,4 +1,4 @@
-/* v0.10.14 depth-buffered solid rendering.
+/* v0.10.16 depth-buffered solid rendering.
    Visual cleanup only: model geometry, dimensions and structural calculations are unchanged. */
 (function(){'use strict';const C=PBPPrecision,G=PBPGeometry,app=planApp,$=s=>document.querySelector(s),fallback=ConstructionRenderer3D.prototype.draw;
 const palette={concrete:'#a7afb5',brick:'#c08d79',block:'#b2b4af',timber:'#bd9b69',panel:'#cfb88c',insulation:'#e7d793',ravoirage:'#c3b9a7',screed:'#b8b8ae',finish:'#d1c1ad',ceiling:'#e2e5e8',joists:'#ad8654'};
@@ -37,9 +37,15 @@ function initGL(renderer){const canvas=document.createElement('canvas'),gl=canva
  const shader=(type,source)=>{const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s;};
  const program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,'attribute vec3 p;attribute vec3 color;varying vec3 v;uniform vec4 view;uniform vec3 size;void main(){float x=p.x*view.x-p.y*view.y;float y=p.x*view.y+p.y*view.x;gl_Position=vec4(x*size.x,(p.z*view.w-y*view.z)*size.y-0.24,-(y*view.w+p.z*view.z)/size.z,1.0);v=color;}'));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,'precision mediump float;varying vec3 v;void main(){gl_FragColor=vec4(v,1.0);}'));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));
  return {canvas,gl,program,buffer:gl.createBuffer(),p:gl.getAttribLocation(program,'p'),color:gl.getAttribLocation(program,'color'),view:gl.getUniformLocation(program,'view'),size:gl.getUniformLocation(program,'size')};}
-function scene(m,show){const b=PBPBuildingUI.getReport(),s=PBPStructureUI.getReport(),f=PBPFoundationUI.getReport(),levels=m.levels.filter(l=>!l.autoFloor).concat(b.levels||[]),vis=G.visible({...m,levels},show),ids=new Set(vis.map(l=>l.id)),ls=new Map(levels.map(l=>[l.id,l])),demo=new Set(f.settings?.enabled&&f.settings.hideDemo?PBPFoundations.demoIds(m.elements):[]);
- const elements=[...new Map([...m.elements,...(f.elements||[]),...(s.elements||[]),...(b.elements||[])].map(e=>[e.id,e])).values()].filter(e=>e.mode==='construction'&&ids.has(e.levelId)&&!e.hiddenLayer&&!demo.has(e.id)&&(show||(!e.foundationRole&&e.type!=='foundation')));
- return {levels,vis,ls,elements};}
+function scene(m,show){const b=PBPBuildingUI.getReport(),s=PBPStructureUI.getReport(),f=PBPFoundationUI.getReport(),levels=m.levels.filter(l=>!l.autoFloor).concat(b.levels||[]),vis=G.visible({...m,levels},show),ids=new Set(vis.map(l=>l.id)),ls=new Map(levels.map(l=>[l.id,l])),demo=new Set(f.settings?.enabled&&f.settings.hideDemo?PBPFoundations.demoIds(m.elements):[]),showFloor=m.view3D?.showFloor!==false;
+ const floorLayers=new Set(['panel','insulation','ravoirage','screed','finish','ceiling','concrete','deck']);
+ const elements=[...new Map([...m.elements,...(f.elements||[]),...(s.elements||[]),...(b.elements||[])].map(e=>[e.id,e])).values()].filter(e=>{
+  if(!(e.mode==='construction'&&ids.has(e.levelId)&&!e.hiddenLayer&&!demo.has(e.id)&&(show||(!e.foundationRole&&e.type!=='foundation'))))return false;
+  // "Plancher" only hides sheet/cover layers. Joists, rim joists and closure rims remain visible.
+  if(!showFloor&&floorLayers.has(e.role))return false;
+  return true;
+ });
+ return {levels,vis,ls,elements,showFloor};}
 function mesh(data){const triangles=[],lines=[],issues=[];let maxDepth=30;
  const put=(arr,p,c)=>{maxDepth=Math.max(maxDepth,Math.abs(p[0])+Math.abs(p[1])+Math.abs(p[2])+10);arr.push(...p,...c);};
  function prism(points,z,h,color,wire=false){if(!Number.isFinite(z)||!(h>0))return;let ps=cleanPolygon(points);if(ps.length<3||Math.abs(C.area(ps))<1e-7)return;if(C.area(ps)<0)ps=ps.slice().reverse();const base=rgb(color),colorFor=n=>{const v=.68+.27*Math.max(0,n[0]*.30+n[1]*-.4+n[2]*.866);return base.map(c=>Math.min(1,c*v));};
@@ -91,12 +97,12 @@ function raster(renderer,geo){
 ConstructionRenderer3D.prototype.draw=function(){if(!this.ctx||!this.width||this.width<2||this.height<2)return;try{
  if(!this.solidGL&&!this.solidFailed){this.solidGL=initGL(this);if(!this.solidGL)this.solidFailed=true;}
  const show=this.app.model.view3D?.showFoundations===true,data=scene(this.app.model,show),key=JSON.stringify([data.levels,data.elements]);if(key!==this.solidKey){this.solidMesh=mesh(data);this.solidKey=key;}const geo=this.solidMesh,r=this.solidGL;
- if(!r||r.gl.isContextLost()){const canvas=raster(this,geo);this.ctx.clearRect(0,0,this.width,this.height);this.ctx.imageSmoothingEnabled=true;this.ctx.imageSmoothingQuality='high';this.ctx.drawImage(canvas,0,0,this.width,this.height);this.solidStatus={webgl:false,softwareDepth:true,triangles:geo.triangles.length/18};const input=$('#gShowFoundations');if(input)input.checked=show;const text=$('#g3DLevels');if(text)text.textContent=data.vis.map(l=>l.name).join(' + ')||'Fondations masquées';return;}const g=r.gl;
+ if(!r||r.gl.isContextLost()){const canvas=raster(this,geo);this.ctx.clearRect(0,0,this.width,this.height);this.ctx.imageSmoothingEnabled=true;this.ctx.imageSmoothingQuality='high';this.ctx.drawImage(canvas,0,0,this.width,this.height);this.solidStatus={webgl:false,softwareDepth:true,triangles:geo.triangles.length/18};const input=$('#gShowFoundations');if(input)input.checked=show;const floor=$('#gShowFloor');if(floor)floor.checked=data.showFloor;const text=$('#g3DLevels');if(text)text.textContent=data.vis.map(l=>l.name).join(' + ')||'Fondations masquées';return;}const g=r.gl;
  if(r.canvas.width!==this.canvas.width||r.canvas.height!==this.canvas.height){r.canvas.width=this.canvas.width;r.canvas.height=this.canvas.height;}
  g.viewport(0,0,r.canvas.width,r.canvas.height);g.clearColor(.933,.949,.961,1);g.clearDepth(1);g.clear(g.COLOR_BUFFER_BIT|g.DEPTH_BUFFER_BIT);g.enable(g.DEPTH_TEST);g.depthFunc(g.LEQUAL);g.disable(g.CULL_FACE);g.useProgram(r.program);g.uniform4f(r.view,Math.cos(this.angle),Math.sin(this.angle),Math.sin(this.tilt),Math.cos(this.tilt));g.uniform3f(r.size,2*this.zoom/this.width,2*this.zoom/this.height,geo.maxDepth);
  g.bindBuffer(g.ARRAY_BUFFER,r.buffer);g.enableVertexAttribArray(r.p);g.enableVertexAttribArray(r.color);g.vertexAttribPointer(r.p,3,g.FLOAT,false,24,0);g.vertexAttribPointer(r.color,3,g.FLOAT,false,24,12);
  for(const [arr,mode] of [[geo.triangles,g.TRIANGLES],[geo.lines,g.LINES]]){g.bufferData(g.ARRAY_BUFFER,new Float32Array(arr),g.DYNAMIC_DRAW);g.drawArrays(mode,0,arr.length/6);}this.ctx.clearRect(0,0,this.width,this.height);this.ctx.drawImage(r.canvas,0,0,this.width,this.height);
- const input=$('#gShowFoundations');if(input)input.checked=show;const text=$('#g3DLevels');if(text)text.textContent=data.vis.map(l=>l.name).join(' + ')||'Fondations masquées';this.solidStatus={webgl:true,antialias:g.getContextAttributes().antialias,triangles:geo.triangles.length/18,issues:geo.issues};
+ const input=$('#gShowFoundations');if(input)input.checked=show;const floor=$('#gShowFloor');if(floor)floor.checked=data.showFloor;const text=$('#g3DLevels');if(text)text.textContent=data.vis.map(l=>l.name).join(' + ')||'Fondations masquées';this.solidStatus={webgl:true,antialias:g.getContextAttributes().antialias,triangles:geo.triangles.length/18,issues:geo.issues};
  }catch(err){console.error('Rendu 3D avancé indisponible',err);this.solidFailed=true;fallback.call(this);}};
 window.PBPSolidView={scene,mesh,raster};window.PBPSolidReady=true;
 })();
