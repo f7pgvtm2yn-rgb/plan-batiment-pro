@@ -4,7 +4,7 @@ const $=s=>document.querySelector(s),fmt=(v,n=1)=>Number.isFinite(v)?v.toFixed(n
 function decorate(){
  const body=$('#jwBody');if(!body)return;
  if($('#jwMaterial')&&!$('#rimRule')){
-  const p=document.createElement('p');p.id='rimRule';p.className='jw-note';p.textContent='Rives automatiques : 5 cm d’appui par solive. Deux solivages face à face partagent une rive centrale = largeur du mur − 2 × 5 cm. Chaque portion de mur parallèle au solivage reçoit sa rive longitudinale, même si les épaisseurs changent sur l’alignement.';
+  const p=document.createElement('p');p.id='rimRule';p.className='jw-note';p.textContent='Appui automatique : max(5 cm ; épaisseur du mur / 2 − 0,5 cm). Deux solivages face à face utilisent chacun leur appui calculé ; la rive centrale prend la largeur restante. Aucun connecteur ni sabot n’est pris en compte.';
   $('#jwMaterial').closest('label').after(p);
  }
  const result=body.querySelector('.jw-result'),r=window.PBPRims.getLastPreview();
@@ -20,7 +20,7 @@ function decorate(){
 function init(){
  if(!$('#jwBody'))throw Error('Assistant de solivage absent.');
  new MutationObserver(decorate).observe($('#jwBody'),{childList:true,subtree:true});
- $('.version').textContent='v0.10.10';document.title='Plan Bâtiment Pro — v0.10.10';
+ $('.version').textContent='v0.10.11';document.title='Plan Bâtiment Pro — v0.10.11';
  window.PBPRimUIReady=true;decorate();
 }
 if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',init);else init();
