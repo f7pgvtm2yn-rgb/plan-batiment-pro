@@ -1,4 +1,4 @@
-/* v0.10.13 — dynamic wall-based seating, common and longitudinal rims.
+/* v0.10.14 — dynamic wall-based seating, common and longitudinal rims.
    Geometry + existing partial C24 comparison; NOT an execution detail. */
 (function(root){
 'use strict';
