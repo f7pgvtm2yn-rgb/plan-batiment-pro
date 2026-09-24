@@ -1,4 +1,4 @@
-/* Plan Bâtiment Pro v0.12.0 — central autonomous project context. */
+/* Plan Bâtiment Pro v0.12.1 — central autonomous project context. */
 (function(root){
 'use strict';
 const clone=v=>JSON.parse(JSON.stringify(v));
