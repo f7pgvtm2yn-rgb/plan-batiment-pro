@@ -8,6 +8,26 @@ function material(){return {type:'unknown',core:200,insulation:0,inside:0,outsid
 function technical(){return {location:'plenum',stacked:false,prescribed:null,clearance:null,reference:'',gas:false,networks:[]};}
 function settings(v){return {schema:1,materials:clone(v?.materials||{}),floors:Array.isArray(v?.floors)?clone(v.floors).slice(0,25):[]};}
 function config(S,below,above){return {...S.floorDefaults(),id:'floor:'+above.id,belowId:below.id,aboveId:above.id,name:'Plancher '+below.name+' → '+above.name,enabled:true,system:'wood',autoSection:true,insulationThickness:0,insulationDensity:30,ravoirage:0,ravoirageDensity:1800,technical:technical(),showAllLayers:true,invert:false};}
+function sideOverlap(a,b,G){
+ const av=G.sub(a.b,a.a),bv=G.sub(b.b,b.a),la=Math.hypot(av.x,av.y),lb=Math.hypot(bv.x,bv.y);if(la<1e-8||lb<1e-8)return 0;
+ if(Math.abs(G.cross(av,bv))>1e-6*la*lb)return 0;
+ if(Math.abs(G.cross(G.sub(b.a,a.a),av))/la>.004)return 0;
+ const u={x:av.x/la,y:av.y/la},x1=G.dot(G.sub(b.a,a.a),u),x2=G.dot(G.sub(b.b,a.a),u);
+ return Math.max(0,Math.min(la,Math.max(x1,x2))-Math.max(0,Math.min(x1,x2)));
+}
+function orientationPlan(faces,c,G){
+ const n=faces.length,preferred=[],spans=[];
+ for(const f of faces){const s=[G.dist(f.points[0],f.points[3]),G.dist(f.points[1],f.points[0])];spans.push(s);const short=s[0]<=s[1]?0:1;preferred.push(c.invert?1-short:short);}
+ const links=[];
+ for(let i=0;i<n;i++)for(let j=i+1;j<n;j++)for(let si=0;si<4;si++)for(let sj=0;sj<4;sj++){const overlap=sideOverlap(faces[i].sides[si],faces[j].sides[sj],G);if(overlap>.02)links.push({i,j,si,sj,overlap});}
+ const mismatch=(dirs,l)=>((l.si%2===dirs[l.i])!==(l.sj%2===dirs[l.j]));
+ const score=dirs=>{let cost=0;for(let i=0;i<n;i++){const min=Math.max(1e-6,Math.min(...spans[i]));cost+=(spans[i][dirs[i]]/min-1)*4+(dirs[i]!==preferred[i]?.25:0);}for(const l of links)if(mismatch(dirs,l))cost+=10000+l.overlap*100;return cost;};
+ let best=[...preferred],bestScore=score(best);
+ if(n<=18){const total=1<<n;for(let mask=0;mask<total;mask++){const dirs=Array.from({length:n},(_,i)=>(mask>>i)&1),s=score(dirs);if(s<bestScore-1e-9){best=dirs;bestScore=s;}}}
+ else{let changed=true,guard=0;while(changed&&guard++<n*4){changed=false;for(let i=0;i<n;i++){const next=[...best];next[i]=1-next[i];const s=score(next);if(s<bestScore-1e-9){best=next;bestScore=s;changed=true;}}}}
+ const conflicts=links.filter(l=>mismatch(best,l));
+ return {directions:best,preferredDirections:preferred,changedIndices:best.map((d,i)=>d!==preferred[i]?i:null).filter(i=>i!==null),conflicts,links};
+}
 function techReport(input){
  const t={...technical(),...input},issues=[],values=[];let complete=true;
  const networks=(t.networks||[]).filter(n=>n.enabled);
@@ -34,7 +54,7 @@ function techReport(input){
 }
 function pairModel(m,face,c,index,G,S){
  const choices=[0,1].map(i=>({i,span:G.dist(face.points[i],face.points[(i+3)%4])})).sort((a,b)=>a.span-b.span||a.i-b.i);
- const side=choices[c.invert?1:0].i,sides=[face.sides[side],face.sides[(side+2)%4]];
+ const forced=Array.isArray(c.bayDirections)?Number(c.bayDirections[index]):NaN,side=(forced===0||forced===1)?forced:choices[c.invert?1:0].i,sides=[face.sides[side],face.sides[(side+2)%4]];
  const walls=sides.map((s,j)=>({id:c.id+':proxy:'+index+':'+j,type:'wallBearing',mode:'construction',levelId:c.belowId,a:s.a,b:s.b,thickness:Math.min(...s.members.map(w=>positive(w.thickness,.2))),height:Math.min(...s.members.map(w=>positive(w.height,2.8)))}));
  const f={...S.floorDefaults(),...c,id:c.id+':bay:'+index,levelId:c.aboveId,sourceLevelId:c.belowId,supportA:walls[0].id,supportB:walls[1].id,system:'wood',autoSection:true};
  // Add the new solid layers to the existing study's permanent load, once only.
@@ -56,11 +76,15 @@ function floorReport(m,c,G,S){
  const faces=detection.faces.filter(f=>c.system!=='wood'||f.rectangle);
  if(faces.length<detection.faces.length)r.issues.push(issue('Travées non rectangulaires exclues du solivage automatique : le dessin reste partiel.'));
  if(!faces.length){r.issues.push(issue('Aucune emprise compatible fermée ; ne pas inventer d’appui.',true));return r;}
+ const orientation=c.system==='wood'?orientationPlan(faces,c,G):null;r.orientation=orientation;
+ if(orientation?.conflicts?.length){r.issues.push(issue('Impossible de rendre tous les appuis communs cohérents automatiquement : '+orientation.conflicts.length+' raccord(s) restent à étudier.',true));return r;}
+ if(orientation?.changedIndices?.length)r.issues.push(issue('Sens du solivage ajusté automatiquement sur '+orientation.changedIndices.length+' travée(s) pour conserver des appuis communs cohérents.'));
+ const orientedStudy=orientation?{...studyConfig,bayDirections:orientation.directions}:studyConfig;
  r.area=faces.reduce((s,f)=>s+f.area,0);
  const sourceTop=Number(below.elevation)+Number(below.height),baseModel={...m,levels:levels.map(l=>l.id===above.id?{...l,elevation:Math.max(above.elevation,sourceTop+1)}:l)};
  let core=positive(c.slabThickness,null),width=null,blocked=false;
  if(c.system==='wood'){
-  const first=faces.map((face,i)=>{const p=pairModel(baseModel,face,studyConfig,i,G,S);return S.floorReport(p.model,p.f);});
+  const first=faces.map((face,i)=>{const p=pairModel(baseModel,face,orientedStudy,i,G,S),bay=S.floorReport(p.model,p.f);bay.direction=orientation?.directions?.[i];bay.faceIndex=i;return bay;});
   if(first.some(b=>!b.suggestion||b.blocked||!b.check?.screened)){blocked=true;r.issues.push(issue('Solivage suspendu : hypothèses, reprise de charges, trémie ou section d’essai à vérifier.',true));}
   core=first.reduce((h,b)=>Math.max(h,b.suggestion?.h||0),0);width=first.reduce((b,r)=>Math.max(b,r.suggestion?.b||0),0);
   r.bays=first;
@@ -80,7 +104,7 @@ function floorReport(m,c,G,S){
  let z=sourceTop;for(const l of aboveLayers){r.layers.push({...l,z});z+=l.h;}
  if(r.gap>0)r.layers.push({role:'reserve',name:'Réserve non affectée',z,h:r.gap,void:true});
  if(c.system==='wood'){
-  r.bays=faces.map((face,i)=>{const p=pairModel({...m,levels:levels.map(l=>l.id===above.id?{...l,elevation:r.requiredTop}:l)},face,{...c,ravoirage:rav*1000},i,G,S);return S.floorReport(p.model,{...p.f,autoSection:false,b:width,h:core});});
+  r.bays=faces.map((face,i)=>{const p=pairModel({...m,levels:levels.map(l=>l.id===above.id?{...l,elevation:r.requiredTop}:l)},face,{...c,ravoirage:rav*1000,bayDirections:orientation?.directions},i,G,S),bay=S.floorReport(p.model,{...p.f,autoSection:false,b:width,h:core});bay.direction=orientation?.directions?.[i];bay.faceIndex=i;return bay;});
   if(r.bays.some(b=>b.blocked||!b.check?.screened||!b.elements.length))blocked=true;
   r.issues.push(...r.bays.flatMap(b=>b.issues.filter(i=>i.severity==='error'&&i.code!=='support-z')));
  }
@@ -134,5 +158,5 @@ function quantities(m,reports,F){
  return {rows:[...grouped.values()],issues:[...new Set(issues)]};
 }
 function report(m,G,S,F){const d=settings(m.buildingDesign),seen=new Set(),floors=d.floors.filter(c=>c.enabled).map(c=>{if(seen.has(c.aboveId))return {config:c,issues:[issue('Deux planchers automatiques visent le même niveau supérieur : doublon exclu.',true)],elements:[],layers:[],bays:[],count:0,area:0,complete:false};seen.add(c.aboveId);return floorReport(m,c,G,S);});return {floors,elements:floors.flatMap(r=>r.elements),levels:floors.flatMap(r=>r.level?[r.level]:[]),quantities:quantities(m,floors,F)};}
-const api={TAG,settings,material,technical,config,techReport,floorReport,report,quantities};if(typeof module!=='undefined'&&module.exports)module.exports=api;if(root)root.PBPBuilding=api;
+const api={TAG,settings,material,technical,config,techReport,orientationPlan,floorReport,report,quantities};if(typeof module!=='undefined'&&module.exports)module.exports=api;if(root)root.PBPBuilding=api;
 })(typeof window!=='undefined'?window:globalThis);
