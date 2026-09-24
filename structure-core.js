@@ -138,8 +138,11 @@ function floorReport(model,input){
   r.spacing=spacing;r.count=n+1;r.G=mass(f);r.area=geo.area;
   if(f.system==='wood'){
    if(geo.L>8)throw Error('Portée supérieure à 8 m : hors du comparateur de sections en bois massif.');
-   if(f.transfer!=='none'){blocked=true;issue('load-path','Cheminement des charges à préciser : le comparateur ne reprend ni étage, ni mur, ni poteau sur les solives.','error');}
-   if(f.grade!=='C24'||!f.restraint||!f.loadsConfirmed){blocked=true;issue('assumptions','Confirmer bois C24, maintien latéral prévu et charges du scénario avant la recherche de section.','error');}
+   const standardScenario=f.assistant===true&&f.scenarioMode==='standard-prestudy';
+   if(f.transfer!=='none'&&!standardScenario){blocked=true;issue('load-path','Cheminement des charges à préciser : le comparateur ne reprend ni étage, ni mur, ni poteau sur les solives.','error');}
+   else if(standardScenario)issue('scenario-load-path','Préétude standard : aucune reprise de mur ou poteau directement sur les solives n’est incluse. Un élément réellement détecté sur la travée reste bloquant.');
+   if((f.grade!=='C24'||!f.restraint||!f.loadsConfirmed)&&!standardScenario){blocked=true;issue('assumptions','Confirmer bois C24, maintien latéral prévu et charges du scénario avant la recherche de section.','error');}
+   else if(standardScenario)issue('scenario-assumptions','Préétude standard : C24 et maintien latéral supposés pour comparer les sections ; les charges saisies restent à vérifier avant exécution.');
    if(f.q<1.5||f.p<2){blocked=true;issue('usage','Scénario habitation : Q < 1,5 kN/m² ou charge ponctuelle < 2 kN. Vérifier l’usage ; recherche automatique suspendue.','error');}
    if(!blocked&&f.autoSection){
     const candidates=[];
