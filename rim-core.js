@@ -1,4 +1,4 @@
-/* v0.10.3 — project-specific 150 mm seating and automatic closure.
+/* v0.10.5 — project-specific 150 mm seating, automatic closure and coherent multi-bay directions.
    Geometry + existing partial C24 comparison; NOT an execution detail. */
 (function(root){
 'use strict';
@@ -37,7 +37,7 @@ function calculate(model,c,r,G,S){
  const fail=(code,text)=>{issue(code,text,true);r.complete=false;r.elements=[];r.count=0;return r;};
  const data=faces.map((face,index)=>{
   const choices=[0,1].map(i=>({i,span:dist(face.points[i],face.points[(i+3)%4])})).sort((a,b)=>a.span-b.span||a.i-b.i);
-  const direction=choices[c.invert?1:0].i;
+  const autoDir=Number(r.orientation?.directions?.[index]),direction=(autoDir===0||autoDir===1)?autoDir:choices[c.invert?1:0].i;
   const sides=face.sides.map((s,j)=>({...line(s.a,s.b),...wallInfo(model,s),face:index,side:j,bearing:j===direction||j===(direction+2)%4,shared:false}));
   return {face,index,direction,sides};
  });
@@ -48,7 +48,7 @@ function calculate(model,c,r,G,S){
   a.shared=b.shared=true;
   if(a.bearing&&b.bearing&&a.masonry&&b.masonry&&a.width>MIN_WALL&&b.width>MIN_WALL&&Math.min(a.width,b.width)<2*SEAT-EPS)
    return fail('rim-double-bearing','Deux travées prennent appui de part et d’autre du même mur : 2 × 15 cm dépassent sa largeur. Liaison, décalage des solives ou continuité à étudier ; aucune superposition forcée.');
-  if(a.bearing!==b.bearing)return fail('rim-mixed-directions','Deux travées voisines abordent le même appui dans des sens différents : raccord particulier à étudier avant de générer les rives.');
+  if(a.bearing!==b.bearing)issue('rim-mixed-directions','Une travée porte sur cet appui partagé tandis que la voisine lui est parallèle : solivage conservé ; aucune rive n’est inventée sur ce mur commun.');
  }
  let eligible=0;
  for(const d of data){
