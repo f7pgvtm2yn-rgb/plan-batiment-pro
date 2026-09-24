@@ -1,11 +1,14 @@
-/* Drawing toolbar v0.10.6. Display only: no structural dimensions are changed. */
+/* Drawing toolbar v0.10.7. Display only: no structural dimensions are changed. */
 (function(root){
 'use strict';
 const TYPES=new Set(['wallExterior','wallBearing','partition','beam','foundation']);
 function settings(input){
   const v=input&&typeof input==='object'?input:{};
-  return {schema:1,dimensions:v.dimensions!==false,automatic:v.automatic!==false,manual:v.manual!==false,
-    selectedOnly:v.selectedOnly===true,grid:v.grid!==false,unit:['m','cm','mm'].includes(v.unit)?v.unit:'m'};
+  return {schema:2,dimensions:v.dimensions!==false,automatic:v.automatic!==false,manual:v.manual!==false,
+    selectedOnly:v.selectedOnly===true,grid:v.grid!==false,unit:['m','cm','mm'].includes(v.unit)?v.unit:'m',
+    profile:['simple','permit','architect','execution'].includes(v.profile)?v.profile:'architect',
+    dimOverall:v.dimOverall!==false,dimFacades:v.dimFacades!==false,dimOpenings:v.dimOpenings!==false,
+    dimRooms:v.dimRooms!==false,dimThickness:v.dimThickness!==false};
 }
 const point=p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y);
 function label(length,unit='m'){
@@ -15,7 +18,7 @@ function label(length,unit='m'){
 }
 function descriptors(model,options,selected){
   const s=settings(options);
-  if(!s.dimensions||!s.automatic)return [];
+  if(!s.dimensions||!s.automatic||s.profile!=='simple')return [];
   return (model.elements||[]).filter(e=>e.mode==='construction'&&e.levelId===model.activeLevelId&&TYPES.has(e.type)&&!e.generator&&point(e.a)&&point(e.b)&&(!s.selectedOnly||e.id===selected))
     .map(e=>({id:e.id,type:e.type,a:{...e.a},b:{...e.b},thickness:Number.isFinite(e.thickness)&&e.thickness>0?e.thickness:0,length:Math.hypot(e.b.x-e.a.x,e.b.y-e.a.y)}))
     .filter(e=>Number.isFinite(e.length)&&e.length>1e-6).map(e=>({...e,text:label(e.length,s.unit)}));
@@ -114,8 +117,8 @@ function syncUI(){
     const el=$('#'+id);el.classList.toggle('active',value);el.setAttribute('aria-pressed',String(value));el.disabled=is3D;
   }
   $('#drawCotes').textContent='↔ Cotes '+(s.dimensions?'✓':'—');$('#drawGrid').textContent='▦ Grille '+(s.grid?'✓':'—');
-  for(const [id,key] of [['dimAutomatic','automatic'],['dimManual','manual'],['dimSelection','selectedOnly']])$('#'+id).checked=s[key];
-  $('#dimUnit').value=s.unit;
+  for(const [id,key] of [['dimAutomatic','automatic'],['dimManual','manual'],['dimSelection','selectedOnly'],['dimOverall','dimOverall'],['dimFacades','dimFacades'],['dimOpenings','dimOpenings'],['dimRooms','dimRooms'],['dimThickness','dimThickness']])if($('#'+id))$('#'+id).checked=s[key];
+  $('#dimUnit').value=s.unit;if($('#dimProfile'))$('#dimProfile').value=s.profile;
   const mag=$('#magToggle');if(mag)mag.setAttribute('aria-pressed',String(app.model.magnet?.enabled!==false));
   $('#drawingToolbar').dataset.view=app.viewMode;
 }
@@ -147,7 +150,7 @@ function init(){
 #drawingOptions label{display:flex;align-items:center;gap:7px;margin:10px 0;line-height:1.4}
 #drawingOptions select{margin-left:auto;padding:5px;min-width:90px;border:1px solid #d1dce3;border-radius:5px;background:white}
 #drawingOptions p{font-size:11px;line-height:1.45;color:#617681;margin:10px 0}
-#drawingOptions .draw-close{float:right;font-size:13px;padding:0 5px;min-height:22px}
+#drawingOptions .arch-dim-options{border:1px solid #d9e2e8;border-radius:6px;padding:6px 9px;margin:8px 0}.arch-dim-options legend{font-size:11px;color:#58717e;padding:0 4px}.draw-close{float:right;font-size:13px;padding:0 5px;min-height:22px}
 #canvasShell>#propertiesPanel{max-width:calc(100% - 20px)}
 @media(max-width:1100px){#drawingToolbar .draw-title{display:none}#drawingToolbar{gap:5px;padding:6px}#drawingToolbar #magRef{width:137px}}
 @media(max-width:600px){#drawingToolbar .draw-group + .draw-group{border-left:0;padding-left:0}#drawingToolbar button,#drawingToolbar select{font-size:11px}.tools-panel{flex:0 0 135px;width:135px}}
@@ -166,19 +169,19 @@ function init(){
   const overlay=$('#overlayBtn');if(overlay)$('#drawViews').append(overlay);
   const zoom=$('.zoom-controls');if(zoom)bar.append(zoom);
   const panel=document.createElement('section');panel.id='drawingOptions';panel.hidden=true;panel.setAttribute('aria-label','Réglages des cotes');
-  panel.innerHTML='<button type="button" class="draw-close" id="drawCloseOptions" aria-label="Fermer les options">×</button><h3>Affichage des cotes</h3><label><input type="checkbox" id="dimAutomatic" checked> Longueurs des murs automatiques</label><label><input type="checkbox" id="dimManual" checked> Cotes ajoutées avec l’outil Cote</label><label><input type="checkbox" id="dimSelection"> Seulement l’élément sélectionné</label><label>Unité <select id="dimUnit"><option value="m">Mètres</option><option value="cm">Centimètres</option><option value="mm">Millimètres</option></select></label><p>Les cotes automatiques mesurent les extrémités sur <strong>l’axe des murs</strong> du niveau actif. Ce ne sont pas les dimensions intérieures finies.</p><p>Les niveaux en transparence ne sont pas cotés. Les petites cotes sans place sont masquées pour éviter les superpositions : zoomez pour les lire.</p><p>La grille est seulement visuelle ; l’aimantation reste réglée par « Aimant murs ». Ces options sont conservées avec <strong>Enregistrer</strong>.</p>';
+  panel.innerHTML='<button type="button" class="draw-close" id="drawCloseOptions" aria-label="Fermer les options">×</button><h3>Affichage des cotes</h3><label><input type="checkbox" id="dimAutomatic" checked> Longueurs des murs automatiques</label><label><input type="checkbox" id="dimManual" checked> Cotes ajoutées avec l’outil Cote</label><label><input type="checkbox" id="dimSelection"> Seulement l’élément sélectionné</label><label>Mode automatique <select id="dimProfile"><option value="architect">Architecte</option><option value="permit">Permis</option><option value="execution">Exécution</option><option value="simple">Simple</option></select></label><label>Unité <select id="dimUnit"><option value="m">Mètres</option><option value="cm">Centimètres</option><option value="mm">Millimètres</option></select></label><fieldset class="arch-dim-options"><legend>Cotation architecte</legend><label><input type="checkbox" id="dimOverall" checked> Hors-tout du bâtiment</label><label><input type="checkbox" id="dimFacades" checked> Chaînes de façades</label><label><input type="checkbox" id="dimOpenings" checked> Ouvertures et leur position</label><label><input type="checkbox" id="dimRooms" checked> Dimensions intérieures utiles</label><label><input type="checkbox" id="dimThickness" checked> Épaisseurs de murs (mode Exécution)</label></fieldset><p>Le mode <strong>Architecte</strong> affiche des chaînes de cotes hiérarchisées. Le mode <strong>Permis</strong> reste plus léger ; le mode <strong>Exécution</strong> ajoute les épaisseurs de murs.</p><p>Les cotes simples mesurent les extrémités sur <strong>l’axe des murs</strong> du niveau actif. Ce ne sont pas les dimensions intérieures finies.</p><p>Les niveaux en transparence ne sont pas cotés. Les petites cotes sans place sont masquées pour éviter les superpositions : zoomez pour les lire.</p><p>La grille est seulement visuelle ; l’aimantation reste réglée par « Aimant murs ». Ces options sont conservées avec <strong>Enregistrer</strong>.</p>';
   column.append(panel);
   function showOptions(show){panel.hidden=!show;$('#drawOptions').setAttribute('aria-expanded',String(show));if(show){panel.style.top=(bar.getBoundingClientRect().height+6)+'px';}}
   $('#drawOptions').onclick=()=>showOptions(panel.hidden);$('#drawCloseOptions').onclick=()=>showOptions(false);
   $('#drawCotes').onclick=()=>change({dimensions:!current().dimensions});$('#drawGrid').onclick=()=>change({grid:!current().grid});
-  for(const [id,key] of [['dimAutomatic','automatic'],['dimManual','manual'],['dimSelection','selectedOnly']])$('#'+id).onchange=e=>change({[key]:e.target.checked});
-  $('#dimUnit').onchange=e=>change({unit:e.target.value});
+  for(const [id,key] of [['dimAutomatic','automatic'],['dimManual','manual'],['dimSelection','selectedOnly'],['dimOverall','dimOverall'],['dimFacades','dimFacades'],['dimOpenings','dimOpenings'],['dimRooms','dimRooms'],['dimThickness','dimThickness']])$('#'+id).onchange=e=>change({[key]:e.target.checked});
+  $('#dimUnit').onchange=e=>change({unit:e.target.value});$('#dimProfile').onchange=e=>change({profile:e.target.value});
   document.addEventListener('pointerdown',e=>{if(!panel.hidden&&!panel.contains(e.target)&&!$('#drawOptions').contains(e.target))showOptions(false);});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!panel.hidden){showOptions(false);$('#drawOptions').focus();}});
   $('[data-tool="dimension"]')?.addEventListener('click',revealMeasure);
   new ResizeObserver(()=>{if(!panel.hidden)panel.style.top=(bar.getBoundingClientRect().height+6)+'px';}).observe(bar);
   document.querySelectorAll('.view-btn').forEach(b=>b.addEventListener('click',()=>{if(!scheduled){scheduled=true;requestAnimationFrame(()=>{scheduled=false;syncUI();});}}));
-  $('.version').textContent='v0.10.6';document.title='Plan Bâtiment Pro — v0.10.6';
+  $('.version').textContent='v0.10.7';document.title='Plan Bâtiment Pro — v0.10.7';
   ready=true;root.PBPDrawingReady=true;api.refresh=refresh;api.getLayout=()=>lastLayout.map(x=>({...x,rect:{...x.rect}}));api.getSettings=current;
   syncUI();app.renderer2d?.resize();app.renderer3d?.resize();
 }
