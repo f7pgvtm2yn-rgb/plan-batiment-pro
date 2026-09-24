@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="fr">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Plan Bâtiment Pro — v0.10.9</title>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Plan Bâtiment Pro — v0.10.10</title>
 <style>html,body{height:100%;margin:0;overflow:hidden;background:#eef1f4;font-family:system-ui,sans-serif}iframe{border:0;width:100%;height:100%;display:block}#loading{position:fixed;inset:0;display:grid;place-content:center;gap:12px;background:#eef1f4;color:#294658;text-align:center;padding:20px}#loading[hidden]{display:none}a{color:#245c7d}</style></head>
 <body><iframe id="editor" title="Éditeur Plan Bâtiment Pro"></iframe><div id="loading"><strong>Plan Bâtiment Pro</strong><span id="message">Ouverture de l’éditeur…</span><a href="engine-v05.html">Ouvrir la version précédente</a></div>
 <script>
@@ -11,7 +11,7 @@
     if(!response.ok)throw new Error('Chargement de l’éditeur impossible.');
     let html=await response.text();
     if(!html.includes('window.planApp'))throw new Error('Le fichier de l’éditeur est incomplet.');
-    // Install the two v0.10.9 magnet hooks in the preserved v0.5 editor.
+    // Install the two v0.10.10 magnet hooks in the preserved v0.5 editor.
     // The production storage key stays "planBatimentPro", not the local-test key.
     const patches=[
       ['function snapPoint(p){','function snapPoint(p){ if(window.PBPMagnet) return window.PBPMagnet.snap(p,{start:app.drawingStart});'],
@@ -23,7 +23,7 @@
     }`]
     ];
     for(const [before,after] of patches){
-      if(html.split(before).length!==2)throw new Error('Version du moteur incompatible avec les repères v0.10.9.');
+      if(html.split(before).length!==2)throw new Error('Version du moteur incompatible avec les repères v0.10.10.');
       html=html.replace(before,after);
     }
     frame.addEventListener('load',()=>{
