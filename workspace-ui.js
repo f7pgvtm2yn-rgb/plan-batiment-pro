@@ -1,4 +1,4 @@
-/* v0.14.0 — organize the existing controls, without replacing their handlers. */
+/* v0.14.1 — organize the existing controls, without replacing their handlers. */
 (function(root){
 'use strict';
 const $=s=>document.querySelector(s),app=root.planApp;
@@ -22,7 +22,7 @@ function init(){
  const importBtn=$('#importPlanBtn');if(importBtn&&importLabel)importLabel.after(importBtn);if($('#rfOpen'))$('#rfOpen').textContent='⌂ Toiture & charpente auto';
  const base=$('#gShowFloor')?.closest('label');if(base){const label=document.createElement('label');label.title='Affichage de la couverture seulement : chevrons et rives conservés';label.innerHTML='<input id="gShowRoofCover" type="checkbox"> Couverture du toit';base.after(label);const input=$('#gShowRoofCover');input.checked=app.model.view3D?.showRoofCover!==false;input.onchange=()=>{app.model.commit();app.model.view3D={...app.model.view3D,showRoofCover:input.checked};app.renderer3d?.draw();};const old=root.ConstructionRenderer3D.prototype.draw;root.ConstructionRenderer3D.prototype.draw=function(...a){input.checked=this.app.model.view3D?.showRoofCover!==false;return old.apply(this,a);};}
  const source=document.createElement('button');source.type='button';source.id='togglePlanSource';source.textContent='Fond importé ✓';source.title='Afficher/masquer le document de référence, sans masquer les objets convertis';$('#drawViews')?.append(source);source.onclick=()=>{const current=(app.model.planSources||[]).filter(s=>s.levelId===app.model.activeLevelId),show=current.some(s=>s.hidden);current.forEach(s=>s.hidden=!show);source.textContent=show?'Fond importé ✓':'Fond importé —';app.renderer2d?.draw();};
- $('.version').textContent='v0.14.0';document.title='Plan Bâtiment Pro — v0.14.0';root.PBPWorkspaceReady=true;app.renderer2d?.resize();app.renderer3d?.resize();
+ $('.version').textContent='v0.14.1';document.title='Plan Bâtiment Pro — v0.14.1';root.PBPWorkspaceReady=true;app.renderer2d?.resize();app.renderer3d?.resize();
 }
 if(document.readyState==='loading')root.addEventListener('DOMContentLoaded',init);else init();
 })(window);
