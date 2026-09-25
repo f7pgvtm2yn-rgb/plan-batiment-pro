@@ -1,4 +1,4 @@
-/* v0.13.0 — Roof groups: independent coverage, source levels and pitches. */
+/* v0.14.1 — Roof groups: independent coverage, source levels and pitches. */
 (function(root){
 'use strict';
 const app=root.planApp,R=root.PBPRoof,C=root.PBPCoverage,Z=root.PBPSpaces,U=root.PBPSpacesUI,$=s=>document.querySelector(s),clone=x=>JSON.parse(JSON.stringify(x));
@@ -44,7 +44,7 @@ function init(){
  $('#rzFields').addEventListener('input',e=>{if(e.target.closest('#rzPicker'))return;read();preview();});
  $('#rzLevel').onchange=()=>{read();groups[current].coverageZones={mode:'selected',ids:[]};drawPicker();preview();};$('#rzBasis').onchange=()=>{read();groups[current].coverageZones={mode:'selected',ids:[]};drawPicker();preview();};
  $('#roofZonesForm').onsubmit=e=>{e.preventDefault();if(groups[current]){if(!e.currentTarget.reportValidity())return;read();}if(app.model!==modelAtOpen||app.model.snapshot()!==base){$('#rzState').textContent='Le projet a changé. Rouvrez Charpente auto avant d’enregistrer.';return;}app.model.commit();app.model.roofDesign=data();dlg.close();refresh();const target=app.model.levels.find(l=>l.id==='roof'||/^toiture$/i.test(l.name||''));if(target&&$('#levelSelect')){$('#levelSelect').value=target.id;$('#levelSelect').dispatchEvent(new Event('change',{bubbles:true}));}refresh();};
- const draw=root.PlanRenderer2D.prototype.draw;root.PlanRenderer2D.prototype.draw=function(...args){const r=draw.apply(this,args);drawRoof(this);return r;};root.PBPRoofUIReady=true;$('.version').textContent='v0.13.0';document.title='Plan Bâtiment Pro — v0.13.0';refresh();
+ const draw=root.PlanRenderer2D.prototype.draw;root.PlanRenderer2D.prototype.draw=function(...args){const r=draw.apply(this,args);drawRoof(this);return r;};root.PBPRoofUIReady=true;$('.version').textContent='v0.14.1';document.title='Plan Bâtiment Pro — v0.14.1';refresh();
 }
 root.PBPRoofUI={getReport:()=>clone(getReport()),refresh,open};if(document.readyState==='loading')root.addEventListener('DOMContentLoaded',init);else init();
 })(window);
