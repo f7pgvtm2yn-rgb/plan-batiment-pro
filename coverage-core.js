@@ -51,6 +51,7 @@ function rectangleUnion(rows){
  return[{points,sides,rectangle:true,area:a}];
 }
 function roofGroupReport(m,s,G,S,R){
+ if(!s._skipForms&&root.PBPRoofForms&&(s.pans!==undefined||s.rotation!==undefined))return root.PBPRoofForms.reportGroup(m,s,G,S,R);
  const out={settings:s,issues:[],elements:[],section:null,count:0,geometry:null,complete:false,validForConstruction:false,geometryComplete:false};
  if(!s.enabled)return out;
  const level=m.levels.find(l=>l.id===s.supportLevelId);if(!level){out.issues.push(error('Niveau d’appui absent. Aucun autre niveau n’est choisi à sa place.'));return out;}

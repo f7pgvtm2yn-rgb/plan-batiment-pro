@@ -1,8 +1,8 @@
 /* Preserve free corner editing; slide wall bodies parallel to their neighbours. */
 (function(){'use strict';const G=PBPGeometry,app=planApp,$=s=>document.querySelector(s);let drag=null,suppress=false;
 const P=ProjectModel.prototype,oldSnap=P.snapshot,oldRestore=P.restore;
-P.snapshot=function(){const d=JSON.parse(oldSnap.call(this));d.view3D={showFoundations:this.view3D?.showFoundations===true,showFloor:this.view3D?.showFloor!==false};return JSON.stringify(d);};
-P.restore=function(text){oldRestore.call(this,text);const v=JSON.parse(text).view3D||{};this.view3D={showFoundations:v.showFoundations===true,showFloor:v.showFloor!==false};};
+P.snapshot=function(){const d=JSON.parse(oldSnap.call(this));d.view3D={showFoundations:this.view3D?.showFoundations===true,showFloor:this.view3D?.showFloor!==false,showRoofCover:this.view3D?.showRoofCover!==false};return JSON.stringify(d);};
+P.restore=function(text){oldRestore.call(this,text);const v=JSON.parse(text).view3D||{};this.view3D={showFoundations:v.showFoundations===true,showFloor:v.showFloor!==false,showRoofCover:v.showRoofCover!==false};};
 ConstructionRenderer3D.prototype.draw=function(){if(!this.ctx||!this.width)return;const c=this.ctx;c.clearRect(0,0,this.width,this.height);c.fillStyle='#eef2f5';c.fillRect(0,0,this.width,this.height);this.drawGround();const m=this.app.model,show=m.view3D?.showFoundations===true,levels=G.visible(m,show);
  for(const l of levels)for(const e of m.elements){if(e.mode!=='construction'||e.levelId!==l.id||(!show&&(e.foundationRole||e.type==='foundation')))continue;if(e.a&&e.b&&['wallExterior','wallBearing','partition','foundation','beam'].includes(e.type))this.wall(e,l,1);else if(['column','slab','opening','stair'].includes(e.type))this.box(e,l,1);}
  const input=$('#gShowFoundations');if(input)input.checked=show;const floor=$('#gShowFloor');if(floor)floor.checked=m.view3D?.showFloor!==false;const text=$('#g3DLevels');if(text)text.textContent=levels.map(l=>l.name).join(' + ')||'Fondations masquées';};
