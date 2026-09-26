@@ -306,7 +306,7 @@ function calculate(model,c,r,G,S){
  joinRimJoistAxes(r.elements);
  const perimeterReturns=data.reduce((n,d)=>n+d.sides.reduce((s,x)=>s+(x.perimeterPieces?.length||0),0),0);
  if(perimeterReturns)issue('rim-perimeter','Périmètre du plancher contrôlé par portions : '+perimeterReturns+' segment(s) d’appui extérieur sont calculés pièce par pièce, y compris les petits retours.');
- const sizes=[...new Set(r.rim.entries.map(e=>e.seatCount===2?(e.wallWidth*100).toFixed(1)+' − '+((e.seatA||0)*100).toFixed(1)+' − '+((e.seatB||0)*100).toFixed(1)+' = '+(e.width*100).toFixed(1)+' cm':(e.wallWidth*100).toFixed(1)+' − '+((e.seat||0)*100).toFixed(1)+' = '+(e.width*100).toFixed(1)+' cm'))];
+ const sizes=[...new Set(r.rim.entries.map(e=>e.seatCount===2?'mur '+(e.wallWidth*100).toFixed(1)+' cm : appuis '+((e.seatA||0)*100).toFixed(1)+' + '+((e.seatB||0)*100).toFixed(1)+' cm':'mur '+(e.wallWidth*100).toFixed(1)+' cm : appui '+((e.seat||0)*100).toFixed(1)+' cm'))];
  if(sizes.length)issue('rim-result','Appuis de rive calculés automatiquement : '+sizes.join(' ; ')+'. Les rives bois ont la hauteur des solives : '+(selected.h/10).toFixed(1)+' cm.');
  if(r.rim.commonRims.length)issue('rim-common','Deux solivages face à face : '+r.rim.commonRims.length+' appui(s) commun(s) calculé(s) avec une portée d’appui de chaque côté ; aucune fermeture grise artificielle n’est ajoutée.');
  if(r.rim.longitudinal.length)issue('rim-longitudinal','Rives longitudinales : '+r.rim.longitudinal.length+' rive(s) bois ajoutée(s) le long des murs parallèles au solivage.');
