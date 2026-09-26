@@ -1,4 +1,4 @@
-/* v0.15.1 — dynamic wall-based seating, common and longitudinal rims.
+/* v0.15.2 — dynamic wall-based seating, common and longitudinal rims.
    Geometry + existing partial C24 comparison; NOT an execution detail. */
 (function(root){
 'use strict';
@@ -74,6 +74,20 @@ function sidePieces(s){
  }
  return out.sort((a,b)=>a.low-b.low);
 }
+function mergedSharedRanges(s){
+ const rows=(s.sharedRanges||[]).map(r=>({low:Math.max(0,Math.min(s.L,r.low)),high:Math.max(0,Math.min(s.L,r.high))})).filter(r=>r.high-r.low>.004).sort((a,b)=>a.low-b.low),out=[];
+ for(const r of rows){const last=out.at(-1);if(last&&r.low<=last.high+.004)last.high=Math.max(last.high,r.high);else out.push({...r});}
+ return out;
+}
+function perimeterPieces(s){
+ const ranges=mergedSharedRanges(s),out=[];
+ for(const piece of s.pieces||[]){
+  let spans=[{low:piece.low,high:piece.high}];
+  for(const r of ranges){const next=[];for(const q of spans){if(r.high<=q.low+.004||r.low>=q.high-.004){next.push(q);continue;}if(r.low>q.low+.004)next.push({low:q.low,high:Math.min(q.high,r.low)});if(r.high<q.high-.004)next.push({low:Math.max(q.low,r.high),high:q.high});}spans=next;if(!spans.length)break;}
+  for(const q of spans){if(q.high-q.low<=.004)continue;out.push({...piece,low:q.low,high:q.high,a:add(s.p,mul(s.u,q.low)),b:add(s.p,mul(s.u,q.high)),perimeter:true});}
+ }
+ return out;
+}
 function widthAtPoint(s,p){
  const t=dot(sub(p,s.p),s.u),hits=(s.pieces||[]).filter(x=>t>=x.low-.006&&t<=x.high+.006);
  if(!hits.length)return Number.isFinite(s.width)?s.width:null;
@@ -101,7 +115,7 @@ function calculate(model,c,r,G,S){
  const data=faces.map((face,index)=>{
   const choices=[0,1].map(i=>({i,span:dist(face.points[i],face.points[(i+3)%4])})).sort((a,b)=>a.span-b.span||a.i-b.i);
   const autoDir=Number(r.orientation?.directions?.[index]),direction=(autoDir===0||autoDir===1)?autoDir:choices[c.invert?1:0].i;
-  const sides=face.sides.map((s,j)=>{const x={...line(s.a,s.b),...wallInfo(model,s),face:index,side:j,bearing:j===direction||j===(direction+2)%4,shared:false};x.pieces=sidePieces(x);return x;});
+  const sides=face.sides.map((s,j)=>{const x={...line(s.a,s.b),...wallInfo(model,s),face:index,side:j,bearing:j===direction||j===(direction+2)%4,shared:false,sharedRanges:[]};x.pieces=sidePieces(x);return x;});
   return {face,index,direction,sides};
  });
  const all=data.flatMap(d=>d.sides);
@@ -110,6 +124,9 @@ function calculate(model,c,r,G,S){
  for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++){
   const a=all[i],b=all[j],overlap=a.face===b.face?null:overlapSegment(a,b);if(!overlap)continue;
   a.shared=b.shared=true;
+  a.sharedRanges.push({low:overlap.low,high:overlap.high});
+  const ba=dot(sub(overlap.a,b.p),b.u),bb=dot(sub(overlap.b,b.p),b.u);
+  b.sharedRanges.push({low:Math.min(ba,bb),high:Math.max(ba,bb)});
   if(a.bearing&&b.bearing&&a.masonry&&b.masonry){
    const cuts=[overlap.low,overlap.high];
    for(const p of a.pieces||[])if(p.high>overlap.low+EPS&&p.low<overlap.high-EPS){cuts.push(Math.max(overlap.low,p.low),Math.min(overlap.high,p.high));}
@@ -140,7 +157,8 @@ function calculate(model,c,r,G,S){
    offsets.push(s.seated?s.width/2-s.seat:0);
    outer.push(s.seated&&!s.shared?-s.width/2:offsets[offsets.length-1]);
    if((s.seated||s.variableBearing)&&s.bearing)eligible++;
-   if((s.seated||localEligible)&&!s.shared)d.rims.push(s);
+   s.perimeterPieces=localEligible?perimeterPieces(s):[];
+   if((s.seated||localEligible)&&s.perimeterPieces.length)d.rims.push(s);
   }
   d.inner=offsetPolygon(d.face.points,offsets);d.outer=offsetPolygon(d.face.points,outer);
   if(area(d.inner)<.04)return fail('rim-no-space','Les appuis et rives ne laissent plus de place au solivage.');
@@ -208,7 +226,7 @@ function calculate(model,c,r,G,S){
    r.elements.push({...common,id:c.id+':seated:'+d.index+':'+l.role,type:'slab',role:l.role,polygon:l.z>=r.sourceTop-EPS?d.inner:d.face.points,zBase:l.z,height:l.h,void:!!l.void,hiddenLayer:c.showAllLayers===false&&!['panel','concrete'].includes(l.role)});
   }
   for(const s of d.rims){
-   let pi=0;for(const piece of s.pieces||[]){const seat=seatForWidth(piece.width);if(seat===null||piece.width<seat-EPS)continue;
+   let pi=0;for(const piece of s.perimeterPieces||perimeterPieces(s)){const seat=seatForWidth(piece.width);if(seat===null||piece.width<seat-EPS)continue;
     const outerA=add(piece.a,mul(s.n,-piece.width/2)),outerB=add(piece.b,mul(s.n,-piece.width/2)),innerA=add(piece.a,mul(s.n,piece.width/2-seat)),innerB=add(piece.b,mul(s.n,piece.width/2-seat));
     const polygon=[outerA,outerB,innerB,innerA],width=Math.max(0,piece.width-seat),material=piece.wall.materialSpec?.type||s.material||'unknown';
     const entry={wallIds:[piece.wall.id],width,wallWidth:piece.width,seat,height:r.required,material,area:area(polygon),split:!s.uniform};r.rim.entries.push(entry);
@@ -227,6 +245,8 @@ function calculate(model,c,r,G,S){
  // Once all perimeter pieces exist, close their angles using their real widths.
  // Structural spans/bearings stay unchanged; only corner geometry is cleaned.
  joinRimJoistAxes(r.elements);miterRimSlabs(r.elements);
+ const perimeterReturns=data.reduce((n,d)=>n+d.sides.reduce((s,x)=>s+(x.perimeterPieces?.length||0),0),0);
+ if(perimeterReturns)issue('rim-perimeter','Périmètre du plancher contrôlé par portions : '+perimeterReturns+' segment(s) extérieur(s) reçoivent une rive, y compris les petits retours après une portion partagée.');
  const sizes=[...new Set(r.rim.entries.map(e=>e.seatCount===2?(e.wallWidth*100).toFixed(1)+' − '+((e.seatA||0)*100).toFixed(1)+' − '+((e.seatB||0)*100).toFixed(1)+' = '+(e.width*100).toFixed(1)+' cm':(e.wallWidth*100).toFixed(1)+' − '+((e.seat||0)*100).toFixed(1)+' = '+(e.width*100).toFixed(1)+' cm'))];
  if(sizes.length)issue('rim-result','Rives calculées automatiquement : '+sizes.join(' ; ')+'. Hauteur : '+(r.required*100).toFixed(1)+' cm, au-dessus des murs inférieurs.');
  if(r.rim.commonRims.length)issue('rim-common','Deux solivages face à face : '+r.rim.commonRims.length+' rive(s) centrale(s) recalculée(s) avec l’appui dynamique de chaque côté.');
@@ -264,7 +284,7 @@ function install(B,G,S,F){
   base.elements=base.floors.flatMap(r=>r.elements);base.levels=base.floors.flatMap(r=>r.level?[r.level]:[]);base.quantities=B.quantities(m,base.floors,f);return base;
  };
 }
-const api={MIN_SEAT,EDGE_CLEARANCE,seatForWidth,calculate,install,offsetPolygon,area,sidePieces,widthAtPoint,miterRimSlabs,joinRimJoistAxes,getLastPreview:()=>lastPreview};
+const api={MIN_SEAT,EDGE_CLEARANCE,seatForWidth,calculate,install,offsetPolygon,area,sidePieces,mergedSharedRanges,perimeterPieces,widthAtPoint,miterRimSlabs,joinRimJoistAxes,getLastPreview:()=>lastPreview};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 if(root){root.PBPRims=api;if(root.PBPBuilding&&root.PBPGeometry&&root.PBPStructure&&root.PBPFoundations)install(root.PBPBuilding,root.PBPGeometry,root.PBPStructure,root.PBPFoundations);}
 })(typeof window!=='undefined'?window:globalThis);
