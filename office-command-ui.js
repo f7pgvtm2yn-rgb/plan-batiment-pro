@@ -1,4 +1,4 @@
-/* Plan Bâtiment Pro v0.16.2 — Office / Word / Excel / Sheets command language without layout changes. */
+/* Plan Bâtiment Pro v0.16.3 — Office / Word / Excel / Sheets command language without layout changes. */
 (function(root){
 'use strict';
 const app=root.planApp,$=s=>document.querySelector(s);
@@ -111,7 +111,7 @@ dialog select.office-select{font-size:10px!important;padding:4px 6px!important}
 @media(max-width:550px){.top-actions .office-command-label{display:none}.top-actions button.office-command{min-width:28px!important;justify-content:center!important}.office-inline-group{padding-left:2px!important}}
 `;document.head.append(style);
  decorateScope();markGroups();future();
- $('.version').textContent='v0.16.2';document.title='Plan Bâtiment Pro — v0.16.2';root.PBPOfficeCommandsReady=true;
+ $('.version').textContent='v0.16.3';document.title='Plan Bâtiment Pro — v0.16.3';root.PBPOfficeCommandsReady=true;
 }
 if(document.readyState==='loading')root.addEventListener('DOMContentLoaded',init);else init();
 })(window);
