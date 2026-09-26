@@ -1,4 +1,4 @@
-/* v0.12.1 — dynamic wall-based seating, common and longitudinal rims.
+/* v0.15.1 — dynamic wall-based seating, common and longitudinal rims.
    Geometry + existing partial C24 comparison; NOT an execution detail. */
 (function(root){
 'use strict';
@@ -9,13 +9,51 @@ function seatForWidth(width){
 }
 let lastPreview=null;
 const sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y}),add=(a,b)=>({x:a.x+b.x,y:a.y+b.y}),mul=(a,t)=>({x:a.x*t,y:a.y*t});
-const dot=(a,b)=>a.x*b.x+a.y*b.y,cross=(a,b)=>a.x*b.y-a.y*b.x,dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const dot=(a,b)=>a.x*b.x+a.y*b.y,cross=(a,b)=>a.x*b.y-a.y*b.x,dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),unit=v=>{const L=Math.hypot(v.x,v.y);return L>EPS?mul(v,1/L):null;};
 const area=p=>Math.abs(p.reduce((s,a,i)=>s+cross(a,p[(i+1)%p.length]),0)/2);
 const value=(v,f=0)=>v!==null&&v!==''&&Number.isFinite(Number(v))?Number(v):f;
 const materialName=t=>({concrete:'béton',brick:'maçonnerie brique',block:'maçonnerie parpaing',timber:'bois de fermeture'})[t]||'matériau à préciser';
 function line(p,q){const L=dist(p,q),u=mul(sub(q,p),1/L);return {p,q,u,n:{x:-u.y,y:u.x},L};}
 function intersect(a,b){const den=cross(a.u,b.u);if(Math.abs(den)<1e-9)throw Error('Raccord de rive indéterminé.');return add(a.p,mul(a.u,cross(sub(b.p,a.p),b.u)/den));}
 function offsetPolygon(points,offsets){const ls=points.map((p,i)=>{const l=line(p,points[(i+1)%points.length]);return {...l,p:add(p,mul(l.n,offsets[i]))};});return ls.map((l,i)=>intersect(ls[(i+ls.length-1)%ls.length],l));}
+function lineIntersection(p,u,q,v){const den=cross(u,v);if(Math.abs(den)<1e-9)return null;return add(p,mul(u,cross(sub(q,p),v)/den));}
+function endpointInfo(e,node){
+ if(e.rimAxisA&&dist(e.rimAxisA,node)<.008)return{end:'a',outer:0,inner:3};
+ if(e.rimAxisB&&dist(e.rimAxisB,node)<.008)return{end:'b',outer:1,inner:2};
+ return null;
+}
+function commonAxisNode(a,b){
+ for(const p of [a.rimAxisA,a.rimAxisB])if(p)for(const q of [b.rimAxisA,b.rimAxisB])if(q&&dist(p,q)<.008)return{x:(p.x+q.x)/2,y:(p.y+q.y)/2};
+ return null;
+}
+function miterRimSlabs(elements){
+ const rows=elements.filter(e=>e.role==='rim'&&e.rimFace!==undefined&&Array.isArray(e.polygon)&&e.polygon.length===4&&e.rimAxisA&&e.rimAxisB);
+ for(let i=0;i<rows.length;i++)for(let j=i+1;j<rows.length;j++){
+  const a=rows[i],b=rows[j];if(a.levelId!==b.levelId||a.assemblyId!==b.assemblyId||a.rimFace!==b.rimFace)continue;
+  const node=commonAxisNode(a,b);if(!node)continue;const ia=endpointInfo(a,node),ib=endpointInfo(b,node);if(!ia||!ib)continue;
+  const ua=unit(sub(a.rimAxisB,a.rimAxisA)),ub=unit(sub(b.rimAxisB,b.rimAxisA));if(!ua||!ub||Math.abs(cross(ua,ub))<.05)continue;
+  const ao=a.polygon[ia.outer],ai=a.polygon[ia.inner],bo=b.polygon[ib.outer],bi=b.polygon[ib.inner];
+  const qo=lineIntersection(ao,ua,bo,ub),qi=lineIntersection(ai,ua,bi,ub);if(!qo||!qi)continue;
+  const limit=Math.max(.12,6*Math.max(Number(a.thickness)||0,Number(b.thickness)||0,dist(ao,ai),dist(bo,bi)));
+  if(dist(qo,node)>limit||dist(qi,node)>limit)continue;
+  a.polygon[ia.outer]={...qo};a.polygon[ia.inner]={...qi};b.polygon[ib.outer]={...qo};b.polygon[ib.inner]={...qi};
+  a.rimJoint='miter';b.rimJoint='miter';
+ }
+ return elements;
+}
+function joinRimJoistAxes(elements){
+ const rows=elements.filter(e=>e.role==='rimJoist'&&e.a&&e.b&&e.rimAxisA&&e.rimAxisB);
+ for(let i=0;i<rows.length;i++)for(let j=i+1;j<rows.length;j++){
+  const a=rows[i],b=rows[j];if(a.levelId!==b.levelId||a.assemblyId!==b.assemblyId||a.rimFace!==b.rimFace)continue;
+  const node=commonAxisNode(a,b);if(!node)continue;const ia=endpointInfo(a,node),ib=endpointInfo(b,node);if(!ia||!ib)continue;
+  const ua=unit(sub(a.b,a.a)),ub=unit(sub(b.b,b.a));if(!ua||!ub||Math.abs(cross(ua,ub))<.05)continue;
+  const q=lineIntersection(a.a,ua,b.a,ub);if(!q)continue;
+  const pa=ia.end==='a'?a.a:a.b,pb=ib.end==='a'?b.a:b.b,limit=Math.max(.20,8*Math.max(Number(a.thickness)||0,Number(b.thickness)||0));
+  if(dist(q,pa)>limit||dist(q,pb)>limit)continue;
+  a[ia.end]={...q};b[ib.end]={...q};a.rimJoint='miter';b.rimJoint='miter';
+ }
+ return elements;
+}
 function spec(model,w){return w.materialSpec||model.buildingDesign?.materials?.[w.levelId]||{};}
 function wallInfo(model,side){
  const walls=side.members||[],widths=walls.map(w=>value(w.thickness)).filter(w=>w>0);
@@ -163,7 +201,7 @@ function calculate(model,c,r,G,S){
     const inset=(piece.width+p.b/1000)/2,ra=add(piece.a,mul(s.n,inset)),rb=add(piece.b,mul(s.n,inset));if(dist(ra,rb)<=.05)continue;
     const entry={wallIds:[piece.wall.id],length:dist(ra,rb),thickness:p.b/1000,height:p.h/1000,wallWidth:piece.width,face:d.index,side:s.side,shared:s.shared};
     r.rim.longitudinal.push(entry);
-    if(c.enabled&&r.complete)r.elements.push({...common,id:c.id+':rim-long:'+d.index+':'+s.side+':'+pi++,type:'beam',role:'rimJoist',floorRole:'rimJoist',a:ra,b:rb,thickness:p.b/1000,height:p.h/1000,zBase:r.sourceTop,sourceWallIds:entry.wallIds,nonLoadBearing:false});
+    if(c.enabled&&r.complete)r.elements.push({...common,id:c.id+':rim-long:'+d.index+':'+s.side+':'+pi++,type:'beam',role:'rimJoist',floorRole:'rimJoist',a:ra,b:rb,thickness:p.b/1000,height:p.h/1000,zBase:r.sourceTop,sourceWallIds:entry.wallIds,nonLoadBearing:false,rimFace:d.index,rimSide:s.side,rimAxisA:{...piece.a},rimAxisB:{...piece.b}});
    }
   }
   if(c.enabled&&r.complete)for(const l of r.layers.filter(l=>l.role!=='joists')){
@@ -174,7 +212,7 @@ function calculate(model,c,r,G,S){
     const outerA=add(piece.a,mul(s.n,-piece.width/2)),outerB=add(piece.b,mul(s.n,-piece.width/2)),innerA=add(piece.a,mul(s.n,piece.width/2-seat)),innerB=add(piece.b,mul(s.n,piece.width/2-seat));
     const polygon=[outerA,outerB,innerB,innerA],width=Math.max(0,piece.width-seat),material=piece.wall.materialSpec?.type||s.material||'unknown';
     const entry={wallIds:[piece.wall.id],width,wallWidth:piece.width,seat,height:r.required,material,area:area(polygon),split:!s.uniform};r.rim.entries.push(entry);
-    if(c.enabled&&r.complete&&width>EPS)r.elements.push({...common,id:c.id+':rim:'+d.index+':'+s.side+':'+pi++,type:'slab',role:'rim',polygon,zBase:r.sourceTop,height:r.required,thickness:width,sourceWallIds:entry.wallIds,rimMaterial:material,nonLoadBearing:true,materialSpec:{type:material}});
+    if(c.enabled&&r.complete&&width>EPS)r.elements.push({...common,id:c.id+':rim:'+d.index+':'+s.side+':'+pi++,type:'slab',role:'rim',polygon,zBase:r.sourceTop,height:r.required,thickness:width,sourceWallIds:entry.wallIds,rimMaterial:material,nonLoadBearing:true,materialSpec:{type:material},rimFace:d.index,rimSide:s.side,rimAxisA:{...piece.a},rimAxisB:{...piece.b}});
    }
   }
  }
@@ -186,6 +224,9 @@ function calculate(model,c,r,G,S){
   r.rim.entries.push(entry);r.rim.commonRims.push(entry);
   if(c.enabled&&r.complete&&x.width>EPS)r.elements.push({...common,id:c.id+':rim-common:'+i,type:'slab',role:'rim',rimKind:'shared',polygon,zBase:r.sourceTop,height:r.required,thickness:x.width,sourceWallIds:entry.wallIds,rimMaterial:x.material,nonLoadBearing:true,materialSpec:{type:x.material}});
  }
+ // Once all perimeter pieces exist, close their angles using their real widths.
+ // Structural spans/bearings stay unchanged; only corner geometry is cleaned.
+ joinRimJoistAxes(r.elements);miterRimSlabs(r.elements);
  const sizes=[...new Set(r.rim.entries.map(e=>e.seatCount===2?(e.wallWidth*100).toFixed(1)+' − '+((e.seatA||0)*100).toFixed(1)+' − '+((e.seatB||0)*100).toFixed(1)+' = '+(e.width*100).toFixed(1)+' cm':(e.wallWidth*100).toFixed(1)+' − '+((e.seat||0)*100).toFixed(1)+' = '+(e.width*100).toFixed(1)+' cm'))];
  if(sizes.length)issue('rim-result','Rives calculées automatiquement : '+sizes.join(' ; ')+'. Hauteur : '+(r.required*100).toFixed(1)+' cm, au-dessus des murs inférieurs.');
  if(r.rim.commonRims.length)issue('rim-common','Deux solivages face à face : '+r.rim.commonRims.length+' rive(s) centrale(s) recalculée(s) avec l’appui dynamique de chaque côté.');
@@ -223,7 +264,7 @@ function install(B,G,S,F){
   base.elements=base.floors.flatMap(r=>r.elements);base.levels=base.floors.flatMap(r=>r.level?[r.level]:[]);base.quantities=B.quantities(m,base.floors,f);return base;
  };
 }
-const api={MIN_SEAT,EDGE_CLEARANCE,seatForWidth,calculate,install,offsetPolygon,area,sidePieces,widthAtPoint,getLastPreview:()=>lastPreview};
+const api={MIN_SEAT,EDGE_CLEARANCE,seatForWidth,calculate,install,offsetPolygon,area,sidePieces,widthAtPoint,miterRimSlabs,joinRimJoistAxes,getLastPreview:()=>lastPreview};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 if(root){root.PBPRims=api;if(root.PBPBuilding&&root.PBPGeometry&&root.PBPStructure&&root.PBPFoundations)install(root.PBPBuilding,root.PBPGeometry,root.PBPStructure,root.PBPFoundations);}
 })(typeof window!=='undefined'?window:globalThis);
