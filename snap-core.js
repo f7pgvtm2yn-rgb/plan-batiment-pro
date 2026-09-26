@@ -1,4 +1,4 @@
-/* v0.10 — geometric assistance only; never a structural verification. */
+/* v0.15.1 — geometric assistance only; never a structural verification. */
 (function(root){'use strict';
 const sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y}),add=(a,b)=>({x:a.x+b.x,y:a.y+b.y}),mul=(v,t)=>({x:v.x*t,y:v.y*t}),dot=(a,b)=>a.x*b.x+a.y*b.y,cross=(a,b)=>a.x*b.y-a.y*b.x,dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),unit=v=>{const l=Math.hypot(v.x,v.y);return l>1e-9?mul(v,1/l):null;};
 const point=p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y);
@@ -35,5 +35,27 @@ function footprints(elements,levels){const ls=new Map(levels.map(l=>[l.id,l])),p
  const limit=Math.min(4*Math.max(a.w.t,b.w.t),dist(a.w.e.a,a.w.e.b)*.45,dist(b.w.e.a,b.w.e.b)*.45);if(intersections.some(p=>dist(p,node.p)>limit))continue;
  const [left,right]=intersections;if(a.end==='a'){a.w.ps[0]=left;a.w.ps[3]=right;}else{a.w.ps[2]=left;a.w.ps[1]=right;}if(b.end==='a'){b.w.ps[0]=right;b.w.ps[3]=left;}else{b.w.ps[2]=right;b.w.ps[1]=left;}
  }return parts;}
-const api={sub,add,mul,dot,cross,dist,unit,point,references,snap,triangulate,footprints,area};if(typeof module!=='undefined'&&module.exports)module.exports=api;if(root)root.PBPPrecision=api;
+const api={sub,add,mul,dot,cross,dist,unit,point,references,snap,triangulate,footprints,area};
+if(typeof module!=='undefined'&&module.exports)module.exports=api;
+if(root){
+ root.PBPPrecision=api;
+ if(root.PlanRenderer2D&&!root.PBPWallJoint2DInstalled){
+  root.PBPWallJoint2DInstalled=true;
+  const fill=(e,overlay)=>overlay?'#8ea3b0':e.type==='wallBearing'?'#273a49':e.type==='partition'?'#7b8790':e.type==='foundation'?'#69747c':e.type==='beam'?'#50616d':'#344c5d';
+  const key=p=>Math.round(p.x*1e6)+','+Math.round(p.y*1e6);
+  root.PlanRenderer2D.prototype.drawWallBatch=function(elements,alpha=1,overlay=false){
+   const parts=footprints(elements,this.app.model.levels);if(!parts.length)return;
+   const c=this.ctx,screen=p=>this.worldToScreen(p),edges=new Map();
+   c.save();c.globalAlpha=alpha;
+   for(const w of parts){
+    const ps=w.ps.map(screen);if(ps.length<3)continue;
+    c.beginPath();ps.forEach((p,i)=>i?c.lineTo(p.x,p.y):c.moveTo(p.x,p.y));c.closePath();c.fillStyle=fill(w.e,overlay);c.fill();
+    for(let i=0;i<w.ps.length;i++){const a=w.ps[i],b=w.ps[(i+1)%w.ps.length],ka=key(a),kb=key(b),k=ka<kb?ka+'|'+kb:kb+'|'+ka;if(!edges.has(k))edges.set(k,[]);edges.get(k).push({a,b});}
+   }
+   c.strokeStyle=overlay?'#667f8f':'#142b3a';c.lineWidth=1.5;c.lineCap='butt';c.lineJoin='miter';
+   for(const rows of edges.values()){if(rows.length>1)continue;const e=rows[0],a=screen(e.a),b=screen(e.b);c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();}
+   c.restore();
+  };
+ }
+}
 })(typeof window!=='undefined'?window:globalThis);
