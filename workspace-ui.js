@@ -1,4 +1,4 @@
-/* Plan Bâtiment Pro v0.17.0 — BIM-like workspace: app bar, métier ribbon, project navigator, properties dock. */
+/* Plan Bâtiment Pro v0.17.1 — BIM-like workspace: app bar, métier ribbon, project navigator, properties dock. */
 (function(root){
 'use strict';
 const app=root.planApp,$=s=>document.querySelector(s),clone=v=>JSON.parse(JSON.stringify(v));
@@ -16,7 +16,7 @@ const TABS=[
  ['documents','Documents']
 ];
 const tabs=new Map();
-let activeTab='construction',deleteTarget=null,menuLevelId=null;
+let activeTab='construction',deleteTarget=null,menuLevelId=null;const layoutState={navCollapsed:false,propsCollapsed:false};
 
 function el(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;}
 function id(prefix='id'){return prefix+'-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7);}
@@ -43,7 +43,7 @@ function selectLevel(levelId){
  app.model.activeLevelId=levelId;
  if(s){s.value=levelId;s.dispatchEvent(new Event('change',{bubbles:true}));}
  else{app.selectedElement=null;app.drawingStart=null;app.renderer2d?.draw();app.renderer3d?.draw();}
- renderNavigator();syncProperties();
+ renderNavigator();syncProperties();layoutState.navCollapsed=innerWidth<=720;layoutState.propsCollapsed=innerWidth<=900;applyPanelState();root.addEventListener('resize',applyPanelState);
 }
 function cleanRoomNames(names,levelId){
  const out={};for(const [k,v] of Object.entries(names||{})){let keep=true;try{const x=JSON.parse(k);if(Array.isArray(x)&&String(x[0])===String(levelId))keep=false;}catch{}if(keep)out[k]=v;}return out;
@@ -142,6 +142,17 @@ function openLevelMenu(levelId,anchor){
 }
 function closeLevelMenu(){const m=$('#levelContextMenu');if(m)m.hidden=true;menuLevelId=null;}
 
+function applyPanelState(){
+ const w=$('.workspace');if(!w)return;const mobile=innerWidth<=720;
+ w.classList.toggle('nav-collapsed',!mobile&&layoutState.navCollapsed);
+ w.classList.toggle('props-collapsed',!mobile&&layoutState.propsCollapsed);
+ w.classList.toggle('nav-open-mobile',mobile&&!layoutState.navCollapsed);
+ w.classList.toggle('props-open-mobile',mobile&&!layoutState.propsCollapsed);
+ const nb=$('#navCollapseBtn'),pb=$('#propsCollapseBtn');if(nb)nb.textContent=layoutState.navCollapsed?'›':'‹';if(pb)pb.textContent=layoutState.propsCollapsed?'‹':'›';
+ setTimeout(()=>{app.renderer2d?.resize();app.renderer3d?.resize();},0);
+}
+function toggleNav(){layoutState.navCollapsed=!layoutState.navCollapsed;applyPanelState();}
+function toggleProps(){layoutState.propsCollapsed=!layoutState.propsCollapsed;applyPanelState();}
 function makeTabs(){
  const bar=$('#tradeTabs'),pages=$('#tradeRibbonPages');for(const [id,label] of TABS){const b=el('button','trade-tab',label);b.type='button';b.dataset.tradeTab=id;b.onclick=()=>activateTab(id);bar.append(b);const p=el('div','trade-page');p.dataset.tradePage=id;p.hidden=id!==activeTab;pages.append(p);tabs.set(id,{button:b,page:p,groups:new Map()});}activateTab(activeTab);
 }
@@ -192,7 +203,7 @@ function syncProperties(){
  const dock=$('#propertiesDock'),panel=$('#propertiesPanel'),empty=$('#propertiesEmpty');if(!dock||!panel||!empty)return;empty.hidden=!panel.classList.contains('hidden');
 }
 function setupPropertiesDock(){
- const dock=$('#propertiesDock'),panel=$('#propertiesPanel');if(!dock||!panel)return;dock.append(panel);panel.classList.add('properties-docked');const empty=el('div','properties-empty');empty.id='propertiesEmpty';empty.innerHTML='<b>PROPRIÉTÉS</b><p>Sélectionnez un mur, une pièce, une solive, une toiture ou un autre objet pour modifier ses paramètres.</p>';dock.prepend(empty);
+ const dock=$('#propertiesDock'),panel=$('#propertiesPanel');if(!dock||!panel)return;dock.append(panel);panel.classList.add('properties-docked');const empty=el('div','properties-empty');empty.id='propertiesEmpty';empty.innerHTML='<b>PROPRIÉTÉS</b><p>Sélectionnez un mur, une pièce, une solive, une toiture ou un autre objet pour modifier ses paramètres.</p>';dock.insertBefore(empty,panel);
  new MutationObserver(syncProperties).observe(panel,{attributes:true,attributeFilter:['class']});syncProperties();
 }
 function setupViewExtras(){
@@ -209,21 +220,23 @@ function setupDialogsAndMenus(){
 }
 function init(){
  const style=document.createElement('style');style.textContent=`
-#app{grid-template-rows:auto auto auto minmax(0,1fr) 30px;background:#eef1f4}
-.topbar{min-height:46px;padding:5px 9px;display:flex;gap:8px;align-items:center;background:#fff;border-bottom:1px solid #d7e0e6}.brand{font-size:13px;margin-right:6px}.top-actions{display:none!important}
-.app-commandbar{display:flex;align-items:center;gap:5px;flex:1;min-width:0}.app-commandbar button,.app-commandbar select,.app-commandbar .file-button{font-size:10px;padding:5px 7px;white-space:nowrap}.app-commandbar .spacer{flex:1}.app-viewbar{display:flex;gap:5px;align-items:center}
-.trade-tabs{display:flex;gap:2px;padding:0 10px;background:#fff;border-bottom:1px solid #dbe3e8;overflow-x:auto}.trade-tab{border:0;background:transparent;border-radius:5px 5px 0 0;padding:8px 12px 7px;font-size:11px;font-weight:650;color:#466273;white-space:nowrap}.trade-tab.active{background:#eef5f8;color:#174f69;border-bottom:2px solid #2b7598}
-.trade-ribbon{height:90px;background:#f6f8fa;border-bottom:1px solid #ccd8df;overflow-x:auto;overflow-y:hidden;padding:5px 8px}.trade-page{height:80px;display:flex;gap:5px;min-width:max-content}.trade-page[hidden]{display:none!important}.trade-group{display:flex;flex-direction:column;border-right:1px solid #d4dee4;padding:2px 8px 0 4px;min-width:max-content}.trade-group-body{display:flex;gap:5px;align-items:flex-start;flex:1}.trade-group-title{text-align:center;color:#70818b;font-size:9px;line-height:14px}.trade-command{font-size:10px!important;min-height:31px!important;padding:5px 7px!important;margin:0!important;white-space:nowrap}.trade-command.tool{width:auto!important;text-align:center!important}.trade-wide{display:flex!important;gap:5px!important;align-items:center!important;max-width:520px}
-#placementSettings.trade-command{display:grid!important;grid-template-columns:auto auto;gap:3px 7px;max-height:70px;overflow:auto;padding:5px!important;min-width:270px}#placementSettings .section-title,#placementSettings .preset-note{display:none}#placementSettings .placement-tool-name{grid-column:1/-1;font-size:10px;margin:0}#placementSettings .setting-row{margin:0;font-size:10px;grid-template-columns:72px 60px}
-.view-strip{display:flex;align-items:center;gap:5px;min-height:35px;padding:3px 8px;background:#fff;border-bottom:1px solid #dbe3e8;overflow-x:auto}.view-strip button,.view-strip select,.view-strip label{font-size:10px;white-space:nowrap}.view-strip .draw-group{display:flex!important;gap:4px;align-items:center;border-right:1px solid #dfe6ea;padding-right:5px}.view-strip .draw-title{display:none}.view-strip #drawingToolbar{display:contents!important}
-.workspace{display:grid!important;grid-template-columns:215px minmax(0,1fr) 265px;min-height:0;overflow:hidden}.tools-panel{display:none!important}.plan-column{min-width:0;min-height:0}.plan-column>#drawingToolbar{display:none!important}.canvas-shell{min-width:0;min-height:0}
-.project-nav{background:#fff;border-right:1px solid #cfd9df;display:flex;flex-direction:column;min-height:0}.project-nav-head{padding:10px;border-bottom:1px solid #e0e7eb}.project-nav-head b{display:block;font-size:12px;color:#2e5265}.project-nav-head small{font-size:9px;color:#748690}.project-level-list{padding:6px;overflow:auto;flex:1}.project-level{display:grid;grid-template-columns:minmax(0,1fr) 30px;gap:2px;border-radius:5px;margin:2px 0}.project-level.active{background:#e8f2f7}.project-level.generated{opacity:.78}.project-level-main{border:0;background:transparent!important;display:flex;align-items:center;gap:7px;text-align:left;padding:7px 6px;min-width:0}.level-icon{width:18px;text-align:center;color:#45697b}.level-copy{display:flex;flex-direction:column;min-width:0}.level-copy b{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.level-copy small{font-size:9px;color:#73838d}.project-level-more{border:0;background:transparent!important;padding:3px;font-weight:800}.project-nav-foot{padding:7px;border-top:1px solid #e0e7eb;display:flex;gap:5px}.project-nav-foot button{flex:1;font-size:10px;padding:6px}
-.properties-dock{background:#fff;border-left:1px solid #cfd9df;min-width:0;min-height:0;overflow:auto}.properties-docked{position:relative!important;top:auto!important;right:auto!important;width:100%!important;max-width:none!important;max-height:none!important;border:0!important;border-radius:0!important;box-shadow:none!important;height:auto!important}.properties-empty{padding:13px;color:#71818b;font-size:11px;line-height:1.45}.properties-empty b{color:#39596a;font-size:11px}.properties-empty[hidden]{display:none!important}
+#app{grid-template-rows:auto auto auto minmax(0,1fr) 28px;background:#eef1f4}
+.topbar{min-height:36px;padding:3px 7px;display:flex;gap:5px;align-items:center;background:#fff;border-bottom:1px solid #d7e0e6}.brand{font-size:12px;margin-right:4px}.top-actions{display:none!important}
+.app-commandbar{display:flex;align-items:center;gap:3px;flex:1;min-width:0}.app-commandbar button,.app-commandbar select,.app-commandbar .file-button{font-size:9.5px;padding:4px 6px;min-height:27px;white-space:nowrap}.app-commandbar .spacer{flex:1}.app-viewbar{display:flex;gap:3px;align-items:center}
+.trade-tabs{height:27px;display:flex;gap:1px;padding:0 7px;background:#fff;border-bottom:1px solid #dbe3e8;overflow-x:auto}.trade-tab{border:0;background:transparent;border-radius:4px 4px 0 0;padding:5px 9px 4px;font-size:10px;font-weight:650;color:#466273;white-space:nowrap}.trade-tab.active{background:#eef5f8;color:#174f69;border-bottom:2px solid #2b7598}
+.trade-ribbon{height:54px;background:#f6f8fa;border-bottom:1px solid #ccd8df;overflow-x:auto;overflow-y:hidden;padding:3px 5px}.trade-page{height:47px;display:flex;gap:3px;min-width:max-content}.trade-page[hidden]{display:none!important}.trade-group{display:flex;flex-direction:column;border-right:1px solid #d4dee4;padding:1px 5px 0 3px;min-width:max-content}.trade-group-body{display:flex;gap:3px;align-items:flex-start;flex:1}.trade-group-title{text-align:center;color:#70818b;font-size:8px;line-height:10px}.trade-command{font-size:9px!important;min-height:25px!important;padding:3px 5px!important;margin:0!important;white-space:nowrap}.trade-command.tool{width:auto!important;text-align:center!important}.trade-wide{display:flex!important;gap:3px!important;align-items:center!important;max-width:420px}
+#placementSettings.trade-command{display:flex!important;align-items:center;gap:5px;max-height:42px;overflow:hidden;padding:3px!important;min-width:220px}#placementSettings .section-title,#placementSettings .preset-note{display:none}#placementSettings .placement-tool-name{font-size:9px;margin:0;max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#placementSettings .setting-row{display:flex!important;gap:3px;margin:0;font-size:9px}#placementSettings .setting-row input{width:48px!important;padding:3px!important}
+.view-strip{display:flex;align-items:center;gap:3px;min-height:25px;padding:2px 6px;background:#fff;border-bottom:1px solid #dbe3e8;overflow-x:auto}.view-strip button,.view-strip select,.view-strip label{font-size:9px;min-height:23px!important;padding:2px 5px!important;white-space:nowrap}.view-strip .draw-group{display:flex!important;gap:3px;align-items:center;border-right:1px solid #dfe6ea;padding-right:4px}.view-strip .draw-title{display:none}.view-strip #drawingToolbar{display:contents!important}
+.workspace{display:grid!important;grid-template-columns:172px minmax(0,1fr) 225px;min-height:0;overflow:hidden;position:relative}.workspace.nav-collapsed{grid-template-columns:32px minmax(0,1fr) 225px}.workspace.props-collapsed{grid-template-columns:172px minmax(0,1fr) 32px}.workspace.nav-collapsed.props-collapsed{grid-template-columns:32px minmax(0,1fr) 32px}.tools-panel{display:none!important}.plan-column{min-width:0;min-height:0}.plan-column>#drawingToolbar{display:none!important}.canvas-shell{min-width:0;min-height:0}
+.project-nav{background:#fff;border-right:1px solid #cfd9df;display:flex;flex-direction:column;min-height:0;position:relative}.project-nav-head{padding:6px 7px;border-bottom:1px solid #e0e7eb;display:grid;grid-template-columns:minmax(0,1fr) 22px;gap:4px;align-items:start}.project-nav-head b{display:block;font-size:10.5px;color:#2e5265}.project-nav-head small{font-size:8px;color:#748690}.side-collapse{border:0!important;background:transparent!important;padding:2px!important;min-width:20px!important;font-size:11px!important}.project-level-list{padding:4px;overflow:auto;flex:1}.project-level{display:grid;grid-template-columns:minmax(0,1fr) 24px;gap:1px;border-radius:4px;margin:1px 0}.project-level.active{background:#e8f2f7}.project-level.generated{opacity:.78}.project-level-main{border:0;background:transparent!important;display:flex;align-items:center;gap:5px;text-align:left;padding:5px 4px;min-width:0}.level-icon{width:15px;text-align:center;color:#45697b;font-size:10px}.level-copy{display:flex;flex-direction:column;min-width:0}.level-copy b{font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.level-copy small{font-size:8px;color:#73838d}.project-level-more{border:0;background:transparent!important;padding:2px;font-size:10px;font-weight:800}.project-nav-foot{padding:4px;border-top:1px solid #e0e7eb;display:flex;gap:3px}.project-nav-foot button{flex:1;font-size:9px;padding:4px}
+.workspace.nav-collapsed .project-nav-head{display:flex;justify-content:center;padding:5px 2px}.workspace.nav-collapsed .project-nav-head>div,.workspace.nav-collapsed .project-level-list,.workspace.nav-collapsed .project-nav-foot{display:none}.workspace.nav-collapsed #navCollapseBtn{transform:rotate(180deg)}
+.properties-dock{background:#fff;border-left:1px solid #cfd9df;min-width:0;min-height:0;overflow:auto;position:relative}.properties-docked{position:relative!important;top:auto!important;right:auto!important;width:100%!important;max-width:none!important;max-height:none!important;border:0!important;border-radius:0!important;box-shadow:none!important;height:auto!important}.properties-empty{padding:10px;color:#71818b;font-size:10px;line-height:1.4}.properties-empty b{color:#39596a;font-size:10px}.properties-empty[hidden]{display:none!important}.properties-dock-toggle{position:sticky;top:0;z-index:5;width:100%;height:24px;border:0!important;border-bottom:1px solid #e0e7eb!important;border-radius:0!important;background:#f8fafb!important;font-size:10px!important;padding:2px!important}.workspace.props-collapsed .properties-dock>*:not(.properties-dock-toggle){display:none!important}.workspace.props-collapsed .properties-dock-toggle{height:100%;writing-mode:vertical-rl;transform:rotate(180deg);border-bottom:0!important}.workspace.props-collapsed #propsCollapseBtn::after{content:' PROPRIÉTÉS';font-size:8px;letter-spacing:.05em}
+
 .level-context-menu{position:fixed;z-index:120;background:#fff;border:1px solid #c8d5dd;border-radius:7px;box-shadow:0 10px 30px #20374430;padding:5px;width:180px}.level-context-menu[hidden]{display:none}.level-context-menu button{width:100%;text-align:left;border:0;background:transparent;border-radius:4px;font-size:11px;padding:7px}.level-context-menu button:hover{background:#edf4f7}.level-context-menu button:disabled{opacity:.4}.level-context-menu hr{border:0;border-top:1px solid #e2e8eb;margin:4px}.danger-text{color:#9a3b2e!important}
 #levelDeleteDialog{width:min(500px,92vw)}.delete-summary{padding:10px;background:#eef4f7;border:1px solid #d3e0e6;border-radius:7px;font-size:12px;line-height:1.55}.delete-warning{font-size:11px;color:#785029;background:#fff4df;border-left:3px solid #d29a43;padding:8px}.delete-ack{font-size:12px}.delete-actions{display:flex;gap:7px;justify-content:flex-end}.danger-button{background:#a54334!important;color:white!important;border-color:#8b362a!important}.danger-button:disabled{opacity:.4!important}
 #autoBadge{top:auto!important;bottom:35px;max-width:calc(100% - 20px)}
-@media(max-width:1000px){.workspace{grid-template-columns:175px minmax(0,1fr) 220px}.trade-tab{padding:7px 9px}.trade-ribbon{height:84px}.trade-page{height:74px}}
-@media(max-width:720px){.workspace{grid-template-columns:145px minmax(0,1fr)}.properties-dock{position:absolute;right:0;top:0;bottom:0;width:210px;z-index:45;box-shadow:-8px 0 20px #23374322}.properties-dock:has(.properties-panel.hidden){display:none}.trade-ribbon{height:78px}.trade-page{height:68px}.trade-command{font-size:9px!important}.brand{display:none}}
+@media(max-width:1000px){.workspace{grid-template-columns:150px minmax(0,1fr) 200px}.workspace.nav-collapsed{grid-template-columns:30px minmax(0,1fr) 200px}.workspace.props-collapsed{grid-template-columns:150px minmax(0,1fr) 30px}.workspace.nav-collapsed.props-collapsed{grid-template-columns:30px minmax(0,1fr) 30px}.trade-tab{padding:5px 7px}.trade-ribbon{height:50px}.trade-page{height:43px}.trade-command{font-size:8.7px!important}}
+@media(max-width:720px){.workspace{grid-template-columns:32px minmax(0,1fr) 32px}.workspace:not(.nav-open-mobile){grid-template-columns:32px minmax(0,1fr) 32px}.workspace.nav-open-mobile{grid-template-columns:150px minmax(0,1fr) 32px}.workspace.props-open-mobile{grid-template-columns:32px minmax(0,1fr) 190px}.workspace.nav-open-mobile.props-open-mobile{grid-template-columns:145px minmax(0,1fr) 180px}.project-nav-head>div,.project-level-list,.project-nav-foot{display:none}.workspace.nav-open-mobile .project-nav-head>div,.workspace.nav-open-mobile .project-level-list,.workspace.nav-open-mobile .project-nav-foot{display:initial}.properties-dock>*:not(.properties-dock-toggle){display:none!important}.workspace.props-open-mobile .properties-dock>*{display:block!important}.trade-ribbon{height:47px}.trade-page{height:40px}.trade-command{font-size:8px!important}.brand{display:none}.app-commandbar button,.app-commandbar .file-button{font-size:8.5px;padding:3px 4px}}
 `;document.head.append(style);
 
  // Build application bar.
@@ -234,18 +247,18 @@ function init(){
 
  // Project navigator + properties dock.
  const workspace=$('.workspace'),plan=$('.plan-column')||$('#canvasShell'),nav=el('aside','project-nav'),dock=el('aside','properties-dock');nav.id='projectNavigator';dock.id='propertiesDock';
- nav.innerHTML='<div class="project-nav-head"><b id="navigatorProjectName">Mon projet</b><small>NIVEAUX DU BÂTIMENT</small></div><div id="projectLevelList" class="project-level-list"></div><div class="project-nav-foot"><button id="navAddLevel" type="button">+ Niveau</button><button id="navDeleteLevel" type="button">− Niveau</button></div>';
- workspace.insertBefore(nav,plan);workspace.append(dock);
+ nav.innerHTML='<div class="project-nav-head"><div><b id="navigatorProjectName">Mon projet</b><small>NIVEAUX</small></div><button id="navCollapseBtn" class="side-collapse" type="button" title="Replier le navigateur">‹</button></div><div id="projectLevelList" class="project-level-list"></div><div class="project-nav-foot"><button id="navAddLevel" type="button">+ Niveau</button><button id="navDeleteLevel" type="button">− Niveau</button></div>';
+ workspace.insertBefore(nav,plan);workspace.append(dock);const propsToggle=el('button','properties-dock-toggle','›');propsToggle.id='propsCollapseBtn';propsToggle.type='button';propsToggle.title='Replier les propriétés';dock.prepend(propsToggle);
 
  makeTabs();setupDialogsAndMenus();setupPropertiesDock();organize();setupViewExtras();setupFutureCommands();
 
  // Navigator buttons keep the native add-level workflow.
- $('#navAddLevel').onclick=()=>$('#addLevelBtn')?.click();$('#navDeleteLevel').onclick=()=>{const l=activeLevel(),g=canDelete(l);if(!g.ok){alert(g.reason);return;}openDelete(l.id);};
+ $('#navAddLevel').onclick=()=>$('#addLevelBtn')?.click();$('#navDeleteLevel').onclick=()=>{const l=activeLevel(),g=canDelete(l);if(!g.ok){alert(g.reason);return;}openDelete(l.id);};$('#navCollapseBtn').onclick=toggleNav;$('#propsCollapseBtn').onclick=toggleProps;
  $('#addLevelBtn').style.display='none';$('#levelSelect').style.display='none';
  new MutationObserver(()=>{renderNavigator();}).observe($('#levelSelect'),{childList:true,subtree:true});
  $('#levelSelect').addEventListener('change',()=>requestAnimationFrame(()=>{renderNavigator();syncProperties();}));
  renderNavigator();syncProperties();
- $('.version').textContent='v0.17.0';document.title='Plan Bâtiment Pro — v0.17.0';root.PBPWorkspaceReady=true;root.PBPWorkspaceLayout='bim-ribbon-v1';
+ $('.version').textContent='v0.17.1';document.title='Plan Bâtiment Pro — v0.17.1';root.PBPWorkspaceReady=true;root.PBPWorkspaceLayout='bim-ribbon-compact-v2';
  app.renderer2d?.resize();app.renderer3d?.resize();
 }
 if(document.readyState==='loading')root.addEventListener('DOMContentLoaded',init);else init();
