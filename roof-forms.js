@@ -1,4 +1,4 @@
-/* v0.14.1 — independent roof form geometry; hips and mono-pitches are NOT sized structures. */
+/* v0.14.2 — independent roof form geometry; hips and mono-pitches are NOT sized structures. */
 (function(root){
 'use strict';
 const finite=Number.isFinite,clone=x=>JSON.parse(JSON.stringify(x));
@@ -35,6 +35,43 @@ function exposedOverhang(z,index,zones,amount,Z){
  for(let e=0;e<edges.length;e++)for(let j=0;j<zones.length;j++){if(j===index)continue;const other=zoneCorners(zones[j],Z);for(const oe of [edge(other[0],other[3]),edge(other[1],other[2]),edge(other[0],other[1]),edge(other[3],other[2])])if(overlapCollinear(edges[e].a,edges[e].b,oe.a,oe.b,Z)>.02){out[names[e]]=0;break;}if(out[names[e]]===0)break;}
  return out;
 }
+function localPoint(p,z,Z){const d=Z.sub(p,z.p);return{x:Z.dot(d,z.u),y:Z.dot(d,z.v)};}
+function roofHeight(form,x,y){return Math.min(...form.surfaces.map(p=>p.a*x+p.b*y+p.c));}
+function clipSegmentRect(a,b,L,W){
+ let t0=0,t1=1,dx=b.x-a.x,dy=b.y-a.y;
+ const tests=[[-dx,a.x],[dx,L-a.x],[-dy,a.y],[dy,W-a.y]];
+ for(const [p,q] of tests){if(Math.abs(p)<1e-12){if(q<0)return null;continue;}const r=q/p;if(p<0){if(r>t1)return null;if(r>t0)t0=r;}else{if(r<t0)return null;if(r<t1)t1=r;}}
+ return{a:{x:a.x+dx*t0,y:a.y+dy*t0},b:{x:a.x+dx*t1,y:a.y+dy*t1},t0,t1};
+}
+function profileIntervals(form,a,b,bottom){
+ const dx=b.x-a.x,dy=b.y-a.y,ts=[0,1];
+ for(let i=0;i<form.surfaces.length;i++)for(let j=i+1;j<form.surfaces.length;j++){
+  const p=form.surfaces[i],q=form.surfaces[j],A=(p.a-q.a)*dx+(p.b-q.b)*dy,B=(p.a-q.a)*a.x+(p.b-q.b)*a.y+(p.c-q.c);
+  if(Math.abs(A)>1e-12){const t=-B/A;if(t>1e-8&&t<1-1e-8)ts.push(t);}
+ }
+ ts.sort((x,y)=>x-y);const uniq=ts.filter((t,i)=>!i||Math.abs(t-ts[i-1])>1e-8),out=[];
+ for(let i=0;i<uniq.length-1;i++){const ta=uniq[i],tb=uniq[i+1],pa={x:a.x+dx*ta,y:a.y+dy*ta},pb={x:a.x+dx*tb,y:a.y+dy*tb},za=roofHeight(form,pa.x,pa.y),zb=roofHeight(form,pb.x,pb.y);if(Math.max(za,zb)>bottom+1e-6)out.push({a:pa,b:pb,za,zb});}
+ return out;
+}
+function wallExtensions(m,z,form,zi,s,common,Z){
+ if(s.extendWalls===false||!z.face?.sides)return[];
+ const level=m.levels.find(l=>l.id===s.supportLevelId),out=[],seen=new Set(),L=z.ridgeLength,W=z.cross;
+ for(const side of z.face.sides||[])for(const w of side.members||[]){
+  if(w.type!=='wallExterior'||!w.a||!w.b||seen.has(w.id))continue;
+  const la=localPoint(w.a,z,Z),lb=localPoint(w.b,z,Z),cut=clipSegmentRect(la,lb,L,W);if(!cut)continue;
+  const wa={x:w.a.x+(w.b.x-w.a.x)*cut.t0,y:w.a.y+(w.b.y-w.a.y)*cut.t0},wb={x:w.a.x+(w.b.x-w.a.x)*cut.t1,y:w.a.y+(w.b.y-w.a.y)*cut.t1};
+  const baseZ=(finite(Number(w.zBase))?Number(w.zBase):Number(level?.elevation)||0)+Number(w.height||0),bottom=baseZ-z.eaveZ;
+  const parts=profileIntervals(form,cut.a,cut.b,bottom);
+  let n=0;for(const p of parts){
+   const span=Math.hypot(cut.b.x-cut.a.x,cut.b.y-cut.a.y)||1,tA=Math.hypot(p.a.x-cut.a.x,p.a.y-cut.a.y)/span,tB=Math.hypot(p.b.x-cut.a.x,p.b.y-cut.a.y)/span;
+   const a={x:wa.x+(wb.x-wa.x)*tA,y:wa.y+(wb.y-wa.y)*tA},b={x:wa.x+(wb.x-wa.x)*tB,y:wa.y+(wb.y-wa.y)*tB};
+   const topA=z.eaveZ+p.za,topB=z.eaveZ+p.zb;if(Math.max(topA,topB)<=baseZ+1e-6)continue;
+   out.push({...common,id:R.TAG+':'+s.id+':wall-ext:'+zi+':'+w.id+':'+n++,type:'roofWallExtension',role:'roofWallExtension',sourceWallId:w.id,a,b,bottomA:baseZ,bottomB:baseZ,topA:Math.max(baseZ,topA),topB:Math.max(baseZ,topB),thickness:Number(w.thickness)||.2,materialSpec:w.materialSpec||null,wallType:w.type,designStatus:'geometry-linked'});
+  }
+  if(parts.length)seen.add(w.id);
+ }
+ return out;
+}
 function reportGroup(m,input,G,S,R){
  const f=settings(input),C=root.PBPCoverage,Z=root.PBPSpaces,s={...input,...f},out=C.roofGroupReport(m,{...s,_skipForms:true,invert:f.rotation%180===90},G,S,R);out.settings=s;
  if(!out.geometry)return out;
@@ -55,8 +92,9 @@ function reportGroup(m,input,G,S,R){
    for(let k=0;k<p.vertices.length;k++){const a=p.vertices[k],b=p.vertices[(k+1)%p.vertices.length],key=[a,b].map(v=>[v.x,v.y,v.z].map(x=>x.toFixed(6)).join(',')).sort().join('|');if(!seams.has(key))seams.set(key,{a,b,count:0});seams.get(key).count++;}
   }
   if(special)for(const [k,x] of [...seams.values()].filter(x=>x.count>1).entries())out.elements.push({...common,id:R.TAG+':'+s.id+':seam:'+zi+':'+k,type:'slopedBeam',role:Math.abs(x.a.z-x.b.z)<1e-6?'ridge':'hip',a:wp(x.a),b:wp(x.b),width:.025,height:.025,visualGuide:true,designStatus:'guide-non-porteur'});
+  const ext=wallExtensions(m,z,form,zi,s,common,Z);out.elements.push(...ext);out.form.wallExtensions=(out.form.wallExtensions||0)+ext.length;
  });
  out.geometryComplete=true;out.validForConstruction=false;return out;
 }
-const api={settings,clip,normalizeOverhang,forms,overlapCollinear,exposedOverhang,reportGroup};if(typeof module!=='undefined'&&module.exports)module.exports=api;if(root){root.PBPRoofForms=api;root.PBPRoofFormsReady=true;}
+const api={settings,clip,normalizeOverhang,forms,overlapCollinear,exposedOverhang,roofHeight,clipSegmentRect,profileIntervals,reportGroup};if(typeof module!=='undefined'&&module.exports)module.exports=api;if(root){root.PBPRoofForms=api;root.PBPRoofFormsReady=true;}
 })(typeof window!=='undefined'?window:globalThis);
