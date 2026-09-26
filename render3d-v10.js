@@ -1,7 +1,7 @@
 /* v0.15.0 depth-buffered solid rendering.
    Visual cleanup only: model geometry, dimensions and structural calculations are unchanged. */
 (function(){'use strict';const C=PBPPrecision,G=PBPGeometry,app=planApp,$=s=>document.querySelector(s),fallback=ConstructionRenderer3D.prototype.draw;
-const palette={concrete:'#a7afb5',brick:'#c08d79',block:'#b2b4af',timber:'#bd9b69',panel:'#cfb88c',insulation:'#e7d793',ravoirage:'#c3b9a7',screed:'#b8b8ae',finish:'#d1c1ad',ceiling:'#e2e5e8',joists:'#ad8654',rafters:'#a67f4f',ridge:'#8c643d',purlin:'#8a633d',trussChord:'#a77d4f',trussWeb:'#c09260',roofInsulation:'#e4d482',liningInside:'#9abbd0',liningOutside:'#99b78f',acousticLining:'#b99ab9',drywallPartition:'#c8bbc9'};
+const palette={wallFloorExtension:'#b3c0c8',concrete:'#a7afb5',brick:'#c08d79',block:'#b2b4af',timber:'#bd9b69',panel:'#cfb88c',insulation:'#e7d793',ravoirage:'#c3b9a7',screed:'#b8b8ae',finish:'#d1c1ad',ceiling:'#e2e5e8',joists:'#ad8654',rafters:'#a67f4f',ridge:'#8c643d',purlin:'#8a633d',trussChord:'#a77d4f',trussWeb:'#c09260',roofInsulation:'#e4d482',liningInside:'#9abbd0',liningOutside:'#99b78f',acousticLining:'#b99ab9',drywallPartition:'#c8bbc9'};
 const rgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255);
 const VIS_EPS=.002;
 const clonePoint=p=>({x:Number(p.x),y:Number(p.y)});
@@ -41,7 +41,7 @@ function scene(m,show){const b=PBPBuildingUI.getReport(),s=PBPStructureUI.getRep
  const floorLayers=new Set(['panel','insulation','ravoirage','screed','finish','ceiling','concrete','deck']);
  const elements=[...new Map([...m.elements.filter(e=>!hiddenHosts.has(e.id)),...(f.elements||[]),...(s.elements||[]),...(b.elements||[]),...(env.elements||[]),...(roof.elements||[])].map(e=>[e.id,e])).values()].filter(e=>{
   if(!(e.mode==='construction'&&ids.has(e.levelId)&&!e.hiddenLayer&&!demo.has(e.id)&&(show||(!e.foundationRole&&e.type!=='foundation'))))return false;
-  // "Plancher" only hides sheet/cover layers. Joists, rim joists and closure rims remain visible.
+  // "Plancher" only hides sheet/cover layers. Joists, timber rims and lower-wall upstands remain visible.
   if(!showFloor&&floorLayers.has(e.role))return false;
   if(e.role==='roofCover'&&m.view3D?.showRoofCover===false)return false;
   return true;
@@ -79,7 +79,7 @@ function mesh(data){const triangles=[],lines=[],issues=[];let maxDepth=30;
 
  for(const e of data.elements){if(walls.includes(e)||e.type==='slopedBeam'||e.type==='roofSurface'||e.type==='roofInsulationSurface'||e.type==='roofWallExtension')continue;const l=data.ls.get(e.levelId);if(!l)continue;const z=Number.isFinite(e.zBase)?e.zBase:l.elevation,h=Number(e.height);let ps=e.polygon;
  if(!ps&&Number.isFinite(e.x)&&Number.isFinite(e.y)&&Number(e.width)>0&&Number(e.depth)>0){const w=e.width/2,d=e.depth/2;ps=[{x:e.x-w,y:e.y-d},{x:e.x+w,y:e.y-d},{x:e.x+w,y:e.y+d},{x:e.x-w,y:e.y+d}];}
- if(ps){const col=e.role==='rim'?(palette[e.rimMaterial]||'#b3c0c8'):(palette[e.role]||'#b8c1c7');prism(ps,z,h,col,e.void||e.type==='opening');}}
+ if(ps){const col=palette[e.role]||'#b8c1c7';prism(ps,z,h,col,e.void||e.type==='opening');}}
  const grid=20;for(let i=-grid;i<=grid;i++){for(const p of [[i,-grid,0],[i,grid,0],[-grid,i,0],[grid,i,0]])put(lines,p,[.81,.85,.87]);}return {triangles,lines,maxDepth,issues};}
 // Software depth buffer for devices with WebGL disabled. Same mesh and camera;
 // supersampling and downscaling smooth silhouettes without moving the model.
