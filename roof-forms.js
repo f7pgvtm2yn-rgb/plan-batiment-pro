@@ -1,4 +1,4 @@
-/* v0.14.2 — independent roof form geometry; hips and mono-pitches are NOT sized structures. */
+/* v0.15.0 — independent roof form geometry; hips and mono-pitches are NOT sized structures. */
 (function(root){
 'use strict';
 const finite=Number.isFinite,clone=x=>JSON.parse(JSON.stringify(x));
@@ -72,12 +72,33 @@ function wallExtensions(m,z,form,zi,s,common,Z){
  }
  return out;
 }
+function insR(i){if(!i?.enabled||i.mode==='none')return 0;let r=i.lambda>0?i.thickness/i.lambda:0;if(i.mode==='between-under'&&i.underThickness>0&&i.underLambda>0)r+=i.underThickness/i.underLambda;return r;}
+function panIns(s,i,R){const d=R.insulationDefault?R.insulationDefault():{enabled:false,mode:'between-under',thickness:.2,lambda:.035,underThickness:.05,underLambda:.035,acoustic:false,reference:''};return{...d,...(Array.isArray(s.panInsulation)?s.panInsulation[i]:null)};}
+function trussMembers(z,s,zi,common,Z,f){
+ const out=[],spacing=Math.max(.3,Number(s.trussSpacing)||.6),n=Math.max(1,Math.ceil(z.ridgeLength/spacing)),actual=z.ridgeLength/n,wp=(x,y,alt)=>({...Z.add(z.p,Z.add(Z.mul(z.u,x),Z.mul(z.v,y))),z:alt});
+ if(f.pans===4)return out;
+ for(let k=0;k<=n;k++){const x=k*actual,left=wp(x,0,z.eaveZ),right=wp(x,z.cross,z.eaveZ),top=f.pans===1?wp(x,z.cross,z.eaveZ+z.rise):wp(x,z.cross/2,z.eaveZ+z.rise),id=common.roofGroupId+':truss:'+zi+':'+k;
+  out.push({...common,id:id+':tc1',type:'slopedBeam',role:'trussChord',a:left,b:top,width:.045,height:.095,designStatus:'schematic'});
+  if(f.pans===2)out.push({...common,id:id+':tc2',type:'slopedBeam',role:'trussChord',a:right,b:top,width:.045,height:.095,designStatus:'schematic'});
+  out.push({...common,id:id+':bc',type:'slopedBeam',role:'trussChord',a:left,b:right,width:.045,height:.095,designStatus:'schematic'});
+  const q1=wp(x,z.cross*.25,z.eaveZ),q3=wp(x,z.cross*.75,z.eaveZ);
+  out.push({...common,id:id+':w1',type:'slopedBeam',role:'trussWeb',a:q1,b:top,width:.035,height:.075,designStatus:'schematic'});
+  if(f.pans===2)out.push({...common,id:id+':w2',type:'slopedBeam',role:'trussWeb',a:q3,b:top,width:.035,height:.075,designStatus:'schematic'});
+ }
+ return out;
+}
+function traditionalPurlins(z,s,zi,common,Z,f,form){
+ const out=[],rows=Math.max(0,Math.round(Number(s.purlinRows)||0));if(!rows||f.pans===4)return out;
+ const wp=(x,y,alt)=>({...Z.add(z.p,Z.add(Z.mul(z.u,x),Z.mul(z.v,y))),z:alt});
+ for(let r=1;r<=rows;r++){const y=z.cross*r/(rows+1),h=roofHeight(form,z.ridgeLength/2,y);out.push({...common,id:common.roofGroupId+':purlin:'+zi+':'+r,type:'slopedBeam',role:'purlin',a:wp(0,y,z.eaveZ+h),b:wp(z.ridgeLength,y,z.eaveZ+h),width:.08,height:.20,designStatus:'schematic'});}
+ return out;
+}
 function reportGroup(m,input,G,S,R){
  const f=settings(input),C=root.PBPCoverage,Z=root.PBPSpaces,s={...input,...f},out=C.roofGroupReport(m,{...s,_skipForms:true,invert:f.rotation%180===90},G,S,R);out.settings=s;
  if(!out.geometry)return out;
  const special=f.pans!==2,common={generator:R.TAG,mode:'construction',levelId:out.elements[0]?.levelId||m.levels.find(l=>l.id==='roof')?.id||s.supportLevelId,locked:true,roofGroupId:s.id,sourceLevelId:s.supportLevelId,designStatus:'geometry-only'};
  if(special){out.section=null;out.complete=false;out.count=0;out.checks=[];out.elements=[];out.issues=out.issues.filter(i=>!i.text.startsWith('Aucune section d’essai')&&(f.pans!==1||!i.text.startsWith('Faîtage représenté')));out.issues.push({severity:'warning',text:f.pans===1?'Monopente : appui haut et reprise des efforts à définir. Géométrie proposée, sans dimensionnement du nouveau système.':'Quatre pans : arêtiers, empannons, assemblages et reprises de charge non dimensionnés. Tracé de principe uniquement.'});}
- out.form={...f,hipPitches:[],trimmedInternalEdges:0};
+ out.form={...f,structureType:s.structureType||'traditional',hipPitches:[],trimmedInternalEdges:0,panInsulation:[],trussCount:0,purlinCount:0};
  const oriented=out.geometry.zones.map(base=>{const z={...base,p:{...base.p},u:{...base.u},v:{...base.v}},L=z.ridgeLength,W=z.cross;if(f.rotation>=180){z.p=Z.add(z.p,Z.add(Z.mul(z.u,L),Z.mul(z.v,W)));z.u=Z.mul(z.u,-1);z.v=Z.mul(z.v,-1);}return z;});
  oriented.forEach((z,zi)=>{
   const L=z.ridgeLength,W=z.cross,ov=exposedOverhang(z,zi,oriented,s.overhang,Z);out.form.trimmedInternalEdges+=Object.values(ov).filter(x=>x===0&&s.overhang>0).length;
@@ -85,7 +106,9 @@ function reportGroup(m,input,G,S,R){
   const seams=new Map();
   for(const [si,p] of form.surfaces.entries()){
    const coverOffset=(out.section?.h||s.h)/2000*Math.max(...form.surfaces.map(q=>Math.sqrt(1+q.a*q.a+q.b*q.b)))+.005;
-   const vertices=p.vertices.map(q=>wp({...q,z:q.z+coverOffset}));out.elements.push({...common,id:R.TAG+':'+s.id+':surface:'+zi+':'+si,type:'roofSurface',role:'roofCover',vertices,height:.035,panIndex:si,panCount:f.pans});
+   const vertices=p.vertices.map(q=>wp({...q,z:q.z+coverOffset})),ins=panIns(s,si,R),rIns=insR(ins);out.form.panInsulation[si]={...ins,R:rIns};
+   out.elements.push({...common,id:R.TAG+':'+s.id+':surface:'+zi+':'+si,type:'roofSurface',role:'roofCover',vertices,height:.035,panIndex:si,panCount:f.pans,insulationR:rIns});
+   if(ins.enabled&&ins.mode!=='none'){const drop=Math.max(.015,Math.min(.18,(Number(ins.thickness)||0)+(ins.mode==='between-under'?(Number(ins.underThickness)||0):0)));out.elements.push({...common,id:R.TAG+':'+s.id+':insulation:'+zi+':'+si,type:'roofInsulationSurface',role:'roofInsulation',vertices:vertices.map(v=>({...v,z:v.z-drop})),height:drop,panIndex:si,panCount:f.pans,insulation:ins,thermalR:rIns});}
    if(special){const axis=['south','north'].includes(p.side)?'x':'y',xs=p.vertices.map(x=>x[axis]),lo=Math.min(...xs),hi=Math.max(...xs),n=Math.max(1,Math.ceil((hi-lo)/s.rafterSpacing));
     for(let k=0;k<=n;k++){const value=lo+(hi-lo)*k/n,cut=crossSection(p.vertices,axis,value);if(!cut||cut[1]-cut[0]<.08)continue;const xy=x=>axis==='x'?{x:value,y:x}:{x,y:value},a=xy(cut[0]),b=xy(cut[1]);a.z=p.a*a.x+p.b*a.y+p.c;b.z=p.a*b.x+p.b*b.y+p.c;out.elements.push({...common,id:R.TAG+':'+s.id+':form:'+zi+':'+si+':'+k,type:'slopedBeam',role:'rafters',a:wp(a),b:wp(b),width:s.b/1000,height:s.h/1000});out.count++;}
    }
@@ -93,8 +116,11 @@ function reportGroup(m,input,G,S,R){
   }
   if(special)for(const [k,x] of [...seams.values()].filter(x=>x.count>1).entries())out.elements.push({...common,id:R.TAG+':'+s.id+':seam:'+zi+':'+k,type:'slopedBeam',role:Math.abs(x.a.z-x.b.z)<1e-6?'ridge':'hip',a:wp(x.a),b:wp(x.b),width:.025,height:.025,visualGuide:true,designStatus:'guide-non-porteur'});
   const ext=wallExtensions(m,z,form,zi,s,common,Z);out.elements.push(...ext);out.form.wallExtensions=(out.form.wallExtensions||0)+ext.length;
+  if((s.structureType||'traditional')==='truss'){const members=trussMembers(z,s,zi,{...common,roofGroupId:s.id},Z,f);out.elements=out.elements.filter(e=>!(e.roofGroupId===s.id&&['rafters','ridge','purlin'].includes(e.role)));out.elements.push(...members);out.form.trussCount+=new Set(members.map(e=>e.id.split(':').slice(0,-1).join(':'))).size;}
+  else{const purlins=traditionalPurlins(z,s,zi,{...common,roofGroupId:s.id},Z,f,form);out.elements.push(...purlins);out.form.purlinCount+=purlins.length;}
  });
+ if((s.structureType||'traditional')==='truss'){out.section=null;out.complete=false;out.validForConstruction=false;out.issues.push({severity:'warning',text:f.pans===4?'Fermettes sur quatre pans : schéma de principe seulement ; fermettes d’arêtier, empannons, connecteurs et contreventement doivent être conçus par le fabricant / bureau d’études.':'Fermettes : implantation et triangulation schématiques. Les sections, connecteurs, contreventements et notes de calcul fabricant ne sont pas déduits automatiquement.'});}
  out.geometryComplete=true;out.validForConstruction=false;return out;
 }
-const api={settings,clip,normalizeOverhang,forms,overlapCollinear,exposedOverhang,roofHeight,clipSegmentRect,profileIntervals,reportGroup};if(typeof module!=='undefined'&&module.exports)module.exports=api;if(root){root.PBPRoofForms=api;root.PBPRoofFormsReady=true;}
+const api={settings,clip,normalizeOverhang,forms,overlapCollinear,exposedOverhang,roofHeight,clipSegmentRect,profileIntervals,insR,panIns,reportGroup};if(typeof module!=='undefined'&&module.exports)module.exports=api;if(root){root.PBPRoofForms=api;root.PBPRoofFormsReady=true;}
 })(typeof window!=='undefined'?window:globalThis);
