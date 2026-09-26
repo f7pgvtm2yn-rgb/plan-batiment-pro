@@ -1,7 +1,7 @@
 /* v0.15.0 depth-buffered solid rendering.
    Visual cleanup only: model geometry, dimensions and structural calculations are unchanged. */
 (function(){'use strict';const C=PBPPrecision,G=PBPGeometry,app=planApp,$=s=>document.querySelector(s),fallback=ConstructionRenderer3D.prototype.draw;
-const palette={wallFloorExtension:'#b3c0c8',concrete:'#a7afb5',brick:'#c08d79',block:'#b2b4af',timber:'#bd9b69',panel:'#cfb88c',insulation:'#e7d793',ravoirage:'#c3b9a7',screed:'#b8b8ae',finish:'#d1c1ad',ceiling:'#e2e5e8',joists:'#ad8654',rafters:'#a67f4f',ridge:'#8c643d',purlin:'#8a633d',trussChord:'#a77d4f',trussWeb:'#c09260',roofInsulation:'#e4d482',liningInside:'#9abbd0',liningOutside:'#99b78f',acousticLining:'#b99ab9',drywallPartition:'#c8bbc9'};
+const palette={concrete:'#a7afb5',brick:'#c08d79',block:'#b2b4af',timber:'#bd9b69',panel:'#cfb88c',insulation:'#e7d793',ravoirage:'#c3b9a7',screed:'#b8b8ae',finish:'#d1c1ad',ceiling:'#e2e5e8',joists:'#ad8654',rafters:'#a67f4f',ridge:'#8c643d',purlin:'#8a633d',trussChord:'#a77d4f',trussWeb:'#c09260',roofInsulation:'#e4d482',liningInside:'#9abbd0',liningOutside:'#99b78f',acousticLining:'#b99ab9',drywallPartition:'#c8bbc9'};
 const rgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255);
 const VIS_EPS=.002;
 const clonePoint=p=>({x:Number(p.x),y:Number(p.y)});
@@ -61,7 +61,7 @@ function mesh(data){const triangles=[],lines=[],issues=[];let maxDepth=30;
  for(const e of data.elements)if(e.type==='roofWallExtension')wallWedge(e,palette[e.materialSpec?.type]||'#b3c0c8');
  const sloped=data.elements.filter(e=>e.type==='slopedBeam');for(const e of sloped)beam3d(e,palette[e.role]||palette.timber);
  const wallTypes=new Set(['wallExterior','wallBearing','partition','foundation','beam']),walls=data.elements.filter(e=>wallTypes.has(e.type)&&e.a&&e.b),ordinary=walls.filter(e=>e.role!=='joists'&&e.floorRole!=='joist'),joists=walls.filter(e=>!ordinary.includes(e));
- const paint=w=>palette[w.e.role]||palette[w.e.materialSpec?.type]||(w.e.type==='foundation'||w.e.foundationRole?'#999fa5':w.e.type==='partition'?'#ccd2d7':'#b3c0c8');
+ const paint=w=>w.e.role==='wallFloorExtension'?(palette[w.e.materialSpec?.type]||'#b3c0c8'):(palette[w.e.role]||palette[w.e.materialSpec?.type]||(w.e.type==='foundation'||w.e.foundationRole?'#999fa5':w.e.type==='partition'?'#ccd2d7':'#b3c0c8'));
  for(const l of data.levels){const group=ordinary.filter(e=>e.levelId===l.id);if(!group.length)continue;const zs=[...new Set(group.flatMap(e=>{const z=Number.isFinite(e.zBase)?e.zBase:l.elevation;return[z,z+Number(e.height)];}).filter(Number.isFinite))].sort((a,b)=>a-b);if(zs.length>160){issues.push('Géométrie très détaillée : raccords simplifiés');for(const w of C.footprints(group,data.levels))prism(w.ps,w.z,w.h,paint(w));continue;}
  for(let i=0;i<zs.length-1;i++){const lo=zs[i],hi=zs[i+1];if(hi-lo<1e-7)continue;const band=group.filter(e=>{const z=Number.isFinite(e.zBase)?e.zBase:l.elevation;return z<hi-1e-7&&z+Number(e.height)>lo+1e-7;}).map(e=>({...e,zBase:lo,height:hi-lo}));for(const w of C.footprints(band,data.levels))prism(w.ps,w.z,w.h,paint(w));}}
  // Trim only the DISPLAY geometry of joist ends back to the visible inner face
