@@ -1,10 +1,10 @@
-/* Plan Bâtiment Pro v0.12.1 — first autonomous timber roof prestudy.
+/* Plan Bâtiment Pro v0.14.2 — first autonomous timber roof prestudy.
    EC5 screening only; connections, global stability, snow/wind zoning and execution remain project inputs/checks. */
 (function(root){
 'use strict';
 const TAG='pbp-roof-v1',G0=9.80665,clone=v=>JSON.parse(JSON.stringify(v)),num=(v,f=null)=>v!==''&&v!==null&&v!==undefined&&Number.isFinite(Number(v))?Number(v):f;
-const defaults=()=>({schema:1,enabled:false,supportLevelId:'r1',system:'gable-rafter',slopeDeg:35,overhang:.30,invert:false,rafterSpacing:.60,deadLoad:.55,snowLoad:null,windPressure:null,grade:'C24',service:2,autoSection:true,b:63,h:175});
-function settings(v){const s={...defaults(),...(v&&typeof v==='object'?clone(v):{})};for(const k of ['slopeDeg','overhang','rafterSpacing','deadLoad','snowLoad','windPressure','b','h'])s[k]=num(s[k],defaults()[k]);s.enabled=s.enabled===true;s.invert=s.invert===true;s.autoSection=s.autoSection!==false;if(!['gable-rafter'].includes(s.system))s.system='gable-rafter';return s;}
+const defaults=()=>({schema:1,enabled:false,supportLevelId:'r1',system:'gable-rafter',slopeDeg:35,overhang:.30,invert:false,rafterSpacing:.60,deadLoad:.55,snowLoad:null,windPressure:null,grade:'C24',service:2,autoSection:true,extendWalls:true,b:63,h:175});
+function settings(v){const s={...defaults(),...(v&&typeof v==='object'?clone(v):{})};for(const k of ['slopeDeg','overhang','rafterSpacing','deadLoad','snowLoad','windPressure','b','h'])s[k]=num(s[k],defaults()[k]);s.enabled=s.enabled===true;s.invert=s.invert===true;s.autoSection=s.autoSection!==false;s.extendWalls=s.extendWalls!==false;if(!['gable-rafter'].includes(s.system))s.system='gable-rafter';return s;}
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 function exteriorLevels(model){return (model.levels||[]).filter(l=>!l.autoFloor&&!['foundations','roof'].includes(l.id)).filter(l=>(model.elements||[]).filter(e=>e.levelId===l.id&&e.type==='wallExterior'&&e.a&&e.b&&!e.generator).length>=3).sort((a,b)=>b.elevation-a.elevation);}
 function pointIn(p,poly){let yes=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++)if((poly[i].y>p.y)!==(poly[j].y>p.y)&&p.x<(poly[j].x-poly[i].x)*(p.y-poly[i].y)/(poly[j].y-poly[i].y)+poly[i].x)yes=!yes;return yes;}
