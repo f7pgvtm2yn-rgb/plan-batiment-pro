@@ -1,10 +1,11 @@
-/* Plan Bâtiment Pro v0.14.2 — first autonomous timber roof prestudy.
+/* Plan Bâtiment Pro v0.15.0 — first autonomous timber roof prestudy.
    EC5 screening only; connections, global stability, snow/wind zoning and execution remain project inputs/checks. */
 (function(root){
 'use strict';
 const TAG='pbp-roof-v1',G0=9.80665,clone=v=>JSON.parse(JSON.stringify(v)),num=(v,f=null)=>v!==''&&v!==null&&v!==undefined&&Number.isFinite(Number(v))?Number(v):f;
-const defaults=()=>({schema:1,enabled:false,supportLevelId:'r1',system:'gable-rafter',slopeDeg:35,overhang:.30,invert:false,rafterSpacing:.60,deadLoad:.55,snowLoad:null,windPressure:null,grade:'C24',service:2,autoSection:true,extendWalls:true,b:63,h:175});
-function settings(v){const s={...defaults(),...(v&&typeof v==='object'?clone(v):{})};for(const k of ['slopeDeg','overhang','rafterSpacing','deadLoad','snowLoad','windPressure','b','h'])s[k]=num(s[k],defaults()[k]);s.enabled=s.enabled===true;s.invert=s.invert===true;s.autoSection=s.autoSection!==false;s.extendWalls=s.extendWalls!==false;if(!['gable-rafter'].includes(s.system))s.system='gable-rafter';return s;}
+const insulationDefault=()=>({enabled:false,mode:'between-under',thickness:.20,lambda:.035,underThickness:.05,underLambda:.035,acoustic:false,reference:''});
+const defaults=()=>({schema:1,enabled:false,supportLevelId:'r1',system:'gable-rafter',structureType:'traditional',slopeDeg:35,overhang:.30,invert:false,rafterSpacing:.60,trussSpacing:.60,purlinRows:2,deadLoad:.55,snowLoad:null,windPressure:null,grade:'C24',service:2,autoSection:true,extendWalls:true,panInsulation:[],b:63,h:175});
+function settings(v){const s={...defaults(),...(v&&typeof v==='object'?clone(v):{})};for(const k of ['slopeDeg','overhang','rafterSpacing','trussSpacing','purlinRows','deadLoad','snowLoad','windPressure','b','h'])s[k]=num(s[k],defaults()[k]);s.enabled=s.enabled===true;s.invert=s.invert===true;s.autoSection=s.autoSection!==false;s.extendWalls=s.extendWalls!==false;if(!['gable-rafter'].includes(s.system))s.system='gable-rafter';if(!['traditional','truss'].includes(s.structureType))s.structureType='traditional';s.trussSpacing=Math.max(.3,Math.min(1.2,s.trussSpacing||.6));s.purlinRows=Math.max(0,Math.min(4,Math.round(s.purlinRows||0)));s.panInsulation=Array.isArray(s.panInsulation)?s.panInsulation.slice(0,4).map(x=>{const d={...insulationDefault(),...(x&&typeof x==='object'?x:{})};d.enabled=d.enabled===true;d.acoustic=d.acoustic===true;if(!['none','between','between-under','sarking','ceiling'].includes(d.mode))d.mode='between-under';for(const k of ['thickness','lambda','underThickness','underLambda'])d[k]=Math.max(0,num(d[k],insulationDefault()[k]));d.reference=String(d.reference||'').slice(0,250);return d;}):[];return s;}
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 function exteriorLevels(model){return (model.levels||[]).filter(l=>!l.autoFloor&&!['foundations','roof'].includes(l.id)).filter(l=>(model.elements||[]).filter(e=>e.levelId===l.id&&e.type==='wallExterior'&&e.a&&e.b&&!e.generator).length>=3).sort((a,b)=>b.elevation-a.elevation);}
 function pointIn(p,poly){let yes=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++)if((poly[i].y>p.y)!==(poly[j].y>p.y)&&p.x<(poly[j].x-poly[i].x)*(p.y-poly[i].y)/(poly[j].y-poly[i].y)+poly[i].x)yes=!yes;return yes;}
@@ -46,5 +47,5 @@ function report(model,G=root.PBPGeometry,S=root.PBPStructure){
  if(s.windPressure>=0)r.upliftReaction=Math.max(r.upliftReaction,s.windPressure*z.spacing*z.span/2);}
  issue('warning','Préétude EC5 : assemblages, appuis, stabilité globale, contreventement, feu, durabilité et règles complètes NF DTU 31.1 restent à vérifier.');r.complete=true;return r;
 }
-const api={TAG,defaults,settings,exteriorLevels,rectangles,footprint,beamCheck,report};if(typeof module!=='undefined'&&module.exports)module.exports=api;if(root){root.PBPRoof=api;root.PBPRoofReady=true;}
+const api={TAG,defaults,insulationDefault,settings,exteriorLevels,rectangles,footprint,beamCheck,report};if(typeof module!=='undefined'&&module.exports)module.exports=api;if(root){root.PBPRoof=api;root.PBPRoofReady=true;}
 })(typeof window!=='undefined'?window:globalThis);
