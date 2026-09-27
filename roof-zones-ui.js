@@ -1,4 +1,4 @@
-/* v0.15.0 — Roof groups: independent coverage, source levels and pitches. */
+/* v0.16.16 — Roof groups: independent coverage, source levels and pitches. */
 (function(root){
 'use strict';
 const app=root.planApp,R=root.PBPRoof,C=root.PBPCoverage,Z=root.PBPSpaces,U=root.PBPSpacesUI,$=s=>document.querySelector(s),clone=x=>JSON.parse(JSON.stringify(x));
@@ -7,8 +7,8 @@ const fmt=x=>Number.isFinite(x)?x.toFixed(2).replace('.',','):'—';
 const P=root.ProjectModel.prototype,oldSnap=P.snapshot,oldRestore=P.restore,persist=v=>Array.isArray(v?.groups)?C.roofSettings(v):R.settings(v);
 P.snapshot=function(){const d=JSON.parse(oldSnap.call(this));d.roofDesign=persist(this.roofDesign);return JSON.stringify(d);};
 P.restore=function(t){oldRestore.call(this,t);this.roofDesign=persist(JSON.parse(t).roofDesign);};
-let groups=[],current=0,currentPan=0,base='',modelAtOpen=null;
-function getReport(){return R.report(app.model);}
+let groups=[],current=0,currentPan=0,base='',modelAtOpen=null,reportRev=-1,reportCache=null;
+function getReport(){if(root.PBPSheets&&!root.PBPSheets.needs('roof',app.model))return root.PBPSheets.emptyRoof(app.model);const rev=Number(app.model._pbpRevision)||0;if(app.dragWall&&reportCache)return reportCache;if(reportRev!==rev||!reportCache){reportCache=R.report(app.model);reportRev=rev;}return reportCache;}
 function levels(){return app.model.levels.filter(l=>!l.autoFloor&&!root.PBPGeometry.foundationIds(app.model).has(l.id)&&l.id!=='roof'&&!/^toiture$/i.test(l.name||''));}
 function data(){return{...R.settings(app.model.roofDesign),schema:2,enabled:groups.some(g=>g.enabled),groups:clone(groups)};}
 const fields=[['rzSlope','slopeDeg'],['rzOverhang','overhang'],['rzSpacing','rafterSpacing'],['rzTrussSpacing','trussSpacing'],['rzPurlinRows','purlinRows'],['rzDead','deadLoad'],['rzSnow','snowLoad'],['rzWind','windPressure'],['rzB','b'],['rzH','h']];
@@ -48,7 +48,7 @@ function init(){
  $('#rzFields').addEventListener('input',e=>{if(e.target.closest('#rzPicker')||e.target.id==='rzPanSelect')return;read();if(e.target.id==='rzPans'){ensureIns(groups[current]);fillIns();}preview();});$('#rzPanSelect').onchange=e=>{readIns();currentPan=Number(e.target.value)||0;fillIns();preview();};
  $('#rzLevel').onchange=()=>{read();groups[current].coverageZones={mode:'selected',ids:[]};drawPicker();preview();};$('#rzBasis').onchange=()=>{read();groups[current].coverageZones={mode:'selected',ids:[]};drawPicker();preview();};
  $('#roofZonesForm').onsubmit=e=>{e.preventDefault();if(groups[current]){if(!e.currentTarget.reportValidity())return;read();}if(app.model!==modelAtOpen||app.model.snapshot()!==base){$('#rzState').textContent='Le projet a changé. Rouvrez Charpente auto avant d’enregistrer.';return;}app.model.commit();app.model.roofDesign=data();dlg.close();refresh();const target=app.model.levels.find(l=>l.id==='roof'||/^toiture$/i.test(l.name||''));if(target&&$('#levelSelect')){$('#levelSelect').value=target.id;$('#levelSelect').dispatchEvent(new Event('change',{bubbles:true}));}refresh();};
- const draw=root.PlanRenderer2D.prototype.draw;root.PlanRenderer2D.prototype.draw=function(...args){const r=draw.apply(this,args);drawRoof(this);return r;};root.PBPRoofUIReady=true;$('.version').textContent='v0.15.0';document.title='Plan Bâtiment Pro — v0.15.0';refresh();
+ const draw=root.PlanRenderer2D.prototype.draw;root.PlanRenderer2D.prototype.draw=function(...args){const r=draw.apply(this,args);drawRoof(this);return r;};root.PBPRoofUIReady=true;$('.version').textContent='v0.16.16';document.title='Plan Bâtiment Pro — v0.16.16';refresh();
 }
-root.PBPRoofUI={getReport:()=>clone(getReport()),refresh,open};if(document.readyState==='loading')root.addEventListener('DOMContentLoaded',init);else init();
+root.PBPRoofUI={getReport:()=>clone(getReport()),refresh,open,calculateNow:()=>{reportRev=-1;return clone(getReport());}};if(document.readyState==='loading')root.addEventListener('DOMContentLoaded',init);else init();
 })(window);
