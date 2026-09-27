@@ -1,4 +1,4 @@
-/* v0.13.0 — Editable room names, live interior areas and graphical zone pickers. */
+/* v0.16.16 — Editable room names, live interior areas and graphical zone pickers. */
 (function(root){
 'use strict';
 const app=root.planApp,Z=root.PBPSpaces,$=s=>document.querySelector(s),clone=x=>JSON.parse(JSON.stringify(x));
@@ -10,7 +10,7 @@ P.snapshot=function(){const d=JSON.parse(previousSnapshot.call(this));d.spaceDes
 P.restore=function(text){previousRestore.call(this,text);this.spaceDesign=Z.settings(JSON.parse(text).spaceDesign);cacheKey='';};
 function storeys(){return app.model.levels.filter(l=>!l.autoFloor&&!root.PBPGeometry.foundationIds(app.model).has(l.id)&&l.id!=='roof'&&!/^toiture$/i.test(l.name||''));}
 function refresh(){cacheKey='';app.renderer2d?.draw();app.renderer3d?.draw();}
-function roomReport(levelId){const m=app.model,key=JSON.stringify([levelId,m.spaceDesign,m.elements.filter(e=>Z.usableWall(e)&&e.levelId===levelId)]);if(cacheModel!==m||cacheKey!==key){cache=Z.rooms(m,levelId);cacheKey=key;cacheModel=m;}return cache;}
+function roomReport(levelId){const m=app.model,rev=Number(m._pbpRevision)||0,key=levelId+'|'+rev;if(app.dragWall&&cacheModel===m&&cache)return cache;if(cacheModel!==m||cacheKey!==key||!cache){cache=Z.rooms(m,levelId);cacheKey=key;cacheModel=m;}return cache;}
 function drawRooms(r){
  hits=[];const m=app.model,s=Z.settings(m.spaceDesign),show=$('#spaceShow');if(show){show.textContent='Pièces '+(s.visible?'✓':'—');show.setAttribute('aria-pressed',String(s.visible));}if(!s.visible||app.viewMode==='3d'||(app.activeMode&&app.activeMode!=='construction'))return;
  const c=r.ctx;c.save();c.textAlign='center';c.textBaseline='middle';
@@ -67,7 +67,7 @@ function init(){
  const base=root.PlanRenderer2D.prototype.draw;root.PlanRenderer2D.prototype.draw=function(...args){const v=base.apply(this,args);drawRooms(this);return v;};
  $('#planCanvas').addEventListener('dblclick',e=>{if(app.activeTool!=='select'||app.dragWall||app.parallelDrag)return;const b=e.currentTarget.getBoundingClientRect(),x=e.clientX-b.left,y=e.clientY-b.top,hit=hits.find(h=>x>=h.x&&x<=h.x+h.w&&y>=h.y&&y<=h.y+h.h);if(hit){e.stopImmediatePropagation();e.preventDefault();openRooms(hit.id);}},true);
  const body=$('#jwBody');if(body)new MutationObserver(decorateJoists).observe(body,{childList:true,subtree:true});decorateJoists();
- root.PBPSpacesReady=true;root.PBPSpacesUI.getLabelBoxes=()=>hits.map(h=>({...h}));$('.version').textContent='v0.13.0';document.title='Plan Bâtiment Pro — v0.13.0';refresh();
+ root.PBPSpacesReady=true;root.PBPSpacesUI.getLabelBoxes=()=>hits.map(h=>({...h}));$('.version').textContent='v0.16.16';document.title='Plan Bâtiment Pro — v0.16.16';refresh();
 }
 root.PBPSpacesUI={picker,refresh,open:openRooms};if(document.readyState==='loading')root.addEventListener('DOMContentLoaded',init);else init();
 })(window);
