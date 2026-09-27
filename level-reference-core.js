@@ -1,4 +1,4 @@
-/* Plan Bâtiment Pro v0.16.5 — level-reference engine.
+/* Plan Bâtiment Pro v0.16.7 — level-reference engine.
    Default: one object inherits the level where it is placed.
    Multi-level objects (opening/stair) retain source + target references. */
 (function(root){
@@ -82,6 +82,7 @@ function applyReference(model,input,placementId,reports=[]){
  }else{
   out.sourceLevelId=ref.sourceLevelId||null;out.targetLevelId=ref.targetLevelId||null;
   if(ref.linkedFloorId)out.linkedFloorId=ref.linkedFloorId;
+  if(input?.type==='opening')out.openingFraming='auto';
   out.multiLevelLinked=true;out.verticalReferenceReason=ref.reason;
   if(ref.height!==null&&ref.height!==undefined)out.height=ref.height;
  }
@@ -93,7 +94,7 @@ function syncElement(model,e,reports=[]){
  if(e.type==='opening'){
   const ref=openingReference(model,e.placementLevelId||e.levelId,reports);
   set('placementLevelId',e.placementLevelId||e.levelId);set('sourceLevelId',ref.sourceLevelId);set('targetLevelId',ref.targetLevelId);if(ref.linkedFloorId)set('linkedFloorId',ref.linkedFloorId);
-  set('verticalReferenceKind','floor-opening');set('multiLevelLinked',true);set('verticalReferenceResolved',ref.resolved);
+  set('verticalReferenceKind','floor-opening');set('multiLevelLinked',true);set('openingFraming','auto');set('verticalReferenceResolved',ref.resolved);
   if(ref.zBase!==null)set('zBase',ref.zBase);if(ref.height!==null)set('height',ref.height);return changed;
  }
  if(e.type==='stair'){
