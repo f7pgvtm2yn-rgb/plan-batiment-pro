@@ -1,4 +1,4 @@
-/* Plan Bâtiment Pro v0.16.15 — mobile adaptive workspace. */
+/* Plan Bâtiment Pro v0.16.16 — mobile adaptive workspace. */
 (function(root){
 'use strict';
 const $=s=>document.querySelector(s),app=root.planApp,MOBILE_MAX=700;
@@ -91,6 +91,6 @@ function activate(){
  const meta=document.querySelector('meta[name="viewport"]');if(meta&&!meta.content.includes('viewport-fit'))meta.content='width=device-width,initial-scale=1,viewport-fit=cover';
  if(app.viewMode==='split')document.querySelector('[data-view="2d"]')?.click();build();bindPan();setTimeout(()=>{app.renderer2d?.resize();app.renderer3d?.resize();sync();},30);
 }
-function init(){addStyle();build();bindPan();activate();mq.addEventListener?.('change',activate);root.addEventListener('orientationchange',()=>setTimeout(activate,80));root.addEventListener('resize',()=>{if(isMobile()!==active)activate();else if(active)setTimeout(()=>{app.renderer2d?.resize();app.renderer3d?.resize();sync();},30);});const v=$('.version');if(v)v.textContent='v0.16.15';document.title='Plan Bâtiment Pro — v0.16.15';root.PBPMobileReady=true;}
+function init(){addStyle();build();bindPan();activate();mq.addEventListener?.('change',activate);root.addEventListener('orientationchange',()=>setTimeout(activate,80));root.addEventListener('resize',()=>{if(isMobile()!==active)activate();else if(active)setTimeout(()=>{app.renderer2d?.resize();app.renderer3d?.resize();sync();},30);});const v=$('.version');if(v)v.textContent='v0.16.16';document.title='Plan Bâtiment Pro — v0.16.16';root.PBPMobileReady=true;}
 if(document.readyState==='loading')root.addEventListener('DOMContentLoaded',init);else init();
 })(window);
