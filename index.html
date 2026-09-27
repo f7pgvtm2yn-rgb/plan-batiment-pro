@@ -32,7 +32,7 @@
       else document.getElementById('message').textContent='Le module ne s’est pas chargé. Actualisez la page ou ouvrez la version précédente.';
     });
     const modules=['geometry-tools.js','geometry-ui.js','sheets-core.js','foundations-core.js','foundations-ui.js','structure-core.js','structure-ui.js','building-core.js','rim-core.js','building-ui.js','level-reference-core.js','snap-core.js','snap-ui.js','roof-core.js','envelope-core.js','envelope-ui.js','render3d-v10.js','joist-coverage.js','joist-wizard.js','rim-ui.js','drawing-options.js','architect-dimensions.js','autonomy-core.js','autonomy-ui.js','spaces-core.js','coverage-core.js','opening-framing-core.js','blocking-core.js','floor-detail-core.js','roof-forms.js','spaces-ui.js','roof-zones-ui.js','roof-detail-core.js','roof-detail-ui.js','plan-import-core.js','plan-import-ui.js','workspace-ui.js','level-add-ui.js','level-delete-ui.js','office-command-ui.js','blocking-ui.js','floor-detail-ui.js','mobile-ui.js','sheets-ui.js','performance-core.js'];
-    const scripts=modules.map(name=>'<script src="'+name+'?v=0.16.16"><\/script>').join('');
+    const scripts=modules.map(name=>'<script src="'+name+'?v=0.16.16-fix1"><\/script>').join('');
     frame.srcdoc=html.replace('</body>',scripts+'</body>');
   }catch(error){document.getElementById('message').textContent=error.message;}
 })();
