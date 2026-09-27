@@ -2,7 +2,9 @@
 (function(){'use strict';const B=PBPBuilding,G=PBPGeometry,S=PBPStructure,F=PBPFoundations,app=planApp,$=s=>document.querySelector(s),clone=v=>JSON.parse(JSON.stringify(v));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),fmt=(v,n=2)=>Number.isFinite(v)?v.toFixed(n).replace('.',','):'—';
 let draft=null,levelId='',floorId='',tab='materials',key='',cached=null,ready=false,rendering=false,selectKey='';
-const P=ProjectModel.prototype,oldSnap=P.snapshot,oldRestore=P.restore,oldCommit=P.commit,oldAdd=P.addElement,oldUpdate=P.updateElement;\nconst revision=m=>Number(m?._pbpRevision)||0,bump=m=>(m._pbpRevision=revision(m)+1);\nP.commit=function(){const out=oldCommit.call(this);bump(this);return out;};
+const P=ProjectModel.prototype,oldSnap=P.snapshot,oldRestore=P.restore,oldCommit=P.commit,oldAdd=P.addElement,oldUpdate=P.updateElement;
+const revision=m=>Number(m?._pbpRevision)||0,bump=m=>(m._pbpRevision=revision(m)+1);
+P.commit=function(){const out=oldCommit.call(this);bump(this);return out;};
 P.snapshot=function(){const d=JSON.parse(oldSnap.call(this));d.buildingDesign=B.settings(this.buildingDesign);d.elements=d.elements.filter(e=>e.generator!==B.TAG);d.levels=d.levels.filter(l=>!l.autoFloor);return JSON.stringify(d);};
 P.restore=function(text){oldRestore.call(this,text);this.buildingDesign=B.settings(JSON.parse(text).buildingDesign);this.elements=this.elements.filter(e=>e.generator!==B.TAG);bump(this);key=-1;sync(this);};
 function assign(e,m,force=true){const p=B.settings(m.buildingDesign).materials[e.levelId];if(p&&p.type!=='unknown'&&['wallExterior','wallBearing','partition'].includes(e.type)){e.materialSpec=clone(p);const extras=Number(p.insulation)+Number(p.inside)+Number(p.outside),total=(Number(p.core)+extras)/1000;if(!force&&Number(e.thickness)*1000>extras)e.materialSpec.core=Number(e.thickness)*1000-extras;else e.thickness=total;}return e;}
