@@ -1,4 +1,4 @@
-/* v0.16.11 depth-buffered solid rendering.
+/* v0.16.12 depth-buffered solid rendering.
    Visual cleanup only: model geometry, dimensions and structural calculations are unchanged. */
 (function(){'use strict';const C=PBPPrecision,G=PBPGeometry,app=planApp,$=s=>document.querySelector(s),fallback=ConstructionRenderer3D.prototype.draw;
 const palette={concrete:'#a7afb5',brick:'#c08d79',block:'#b2b4af',timber:'#bd9b69',panel:'#cfb88c',insulation:'#e7d793',ravoirage:'#c3b9a7',screed:'#b8b8ae',finish:'#d1c1ad',ceiling:'#e2e5e8',joists:'#ad8654',rafters:'#a67f4f',ridge:'#8c643d',purlin:'#8a633d',trussChord:'#a77d4f',trussWeb:'#c09260',roofInsulation:'#e4d482',liningInside:'#9abbd0',liningOutside:'#99b78f',acousticLining:'#b99ab9',drywallPartition:'#c8bbc9'};
