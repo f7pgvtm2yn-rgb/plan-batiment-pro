@@ -126,7 +126,11 @@ function floorReport(model,input){
     if(inside){blocked=true;issue('transfer','Mur porteur ou poteau détecté sur la travée : reprise ponctuelle/linéaire non calculée.','error');break;}
    }
   }
-  if((model.elements||[]).some(e=>e.mode==='construction'&&e.type==='opening'&&(e.levelId===f.levelId||e.targetLevelId===f.levelId||e.linkedFloorId===f.id))){blocked=true;issue('opening','Une trémie est liée à ce plancher : pas de découpe automatique, chevêtres à étudier.','error');}
+  const linkedOpenings=(model.elements||[]).filter(e=>e.mode==='construction'&&e.type==='opening'&&(e.levelId===f.levelId||e.targetLevelId===f.levelId||e.linkedFloorId===f.id));
+  if(linkedOpenings.length){
+   if(linkedOpenings.every(e=>e.openingFraming==='auto'))issue('opening-auto','Trémie liée : découpe géométrique et chevêtre automatique pris en charge au niveau bâtiment ; sections et assemblages à vérifier.');
+   else{blocked=true;issue('opening','Une trémie sans règle de chevêtre automatique existe à ce niveau.','error');}
+  }
   const fa=model.foundationAutomation||{};
   if(f.system==='ground'){
    if(!f.houseScope||Number(f.q)>2.5)issue('slab-scope','Seuil de 120 mm non applicable automatiquement : confirmer le domaine maison individuelle et les charges ≤ 2,5 kN/m².','error');
