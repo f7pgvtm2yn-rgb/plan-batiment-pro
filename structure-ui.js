@@ -12,9 +12,9 @@ proto.snapshot=function(){const d=JSON.parse(oldSnapshot.call(this));d.structure
 proto.restore=function(text){oldRestore.call(this,text);this.structureDesign=S.settings(JSON.parse(text).structureDesign);this.elements=this.elements.filter(e=>e.generator!==S.TAG);cacheKey='';};
 const foundationCompute=F.compute;
 F.compute=function(model){const r=S.foundation(model);const result=foundationCompute({...model,foundationAutomation:r.effective});if(result.settings.enabled)result.issues.push(...r.issues);return result;};
-function report(){const m=app.model,key=JSON.stringify([m.structureDesign,m.foundationAutomation,m.levels,m.elements.filter(e=>e.generator!==S.TAG)]);if(key!==cacheKey){cached=S.report(m);cacheKey=key;}return cached;}
+function report(){const m=app.model;if(window.PBPSheets&&!window.PBPSheets.needs('structure',m))return window.PBPSheets.emptyStructure();const key=Number(m._pbpRevision)||0;if(key!==cacheKey||!cached){cached=S.report(m);cacheKey=key;}return cached;}
 function refresh(){cacheKey='';app.renderer2d?.draw();app.renderer3d?.draw();}
-function badge(r){if(!ready)return;const count=r.floors.length,b=$('#stBadge');b.hidden=!count;
+function badge(r){if(!ready)return;if(window.PBPSheets&&!window.PBPSheets.needs('structure')){$('#stBadge').hidden=true;return;}const count=r.floors.length,b=$('#stBadge');b.hidden=!count;
  if(count)b.textContent='Structure : '+count+' zone(s) de plancher · PRÉÉTUDE À VALIDER'+(r.floors.some(f=>f.issues.some(i=>i.severity==='error'))?' · alertes à corriger':'');
  $('#stState').textContent=count?count+' zone(s) liée(s) aux appuis':'Dalles, solives et hauteurs par niveau';
 }
