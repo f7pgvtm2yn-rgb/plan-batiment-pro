@@ -1,4 +1,4 @@
-/* Plan Bâtiment Pro v0.16.7 — safe level deletion, independent of workspace layout. */
+/* Plan Bâtiment Pro v0.16.8 — safe level deletion, independent of workspace layout. */
 (function(root){
 'use strict';
 const app=root.planApp,$=s=>document.querySelector(s),clone=v=>JSON.parse(JSON.stringify(v));
