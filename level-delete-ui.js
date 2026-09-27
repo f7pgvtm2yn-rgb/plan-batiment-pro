@@ -1,4 +1,4 @@
-/* Plan Bâtiment Pro v0.16.5 — safe level deletion, independent of workspace layout. */
+/* Plan Bâtiment Pro v0.16.6 — safe level deletion, independent of workspace layout. */
 (function(root){
 'use strict';
 const app=root.planApp,$=s=>document.querySelector(s),clone=v=>JSON.parse(JSON.stringify(v));
@@ -9,8 +9,8 @@ function canDelete(l){
  if(!l)return{ok:false,reason:'Aucun niveau sélectionné.'};
  if(PROTECTED.has(l.id))return{ok:false,reason:'Ce niveau de base est protégé.'};
  if(l.autoFloor)return{ok:false,reason:'Ce niveau est généré par un plancher automatique. Supprimez le plancher depuis Structure.'};
- const user=app.model.levels.filter(x=>!x.autoFloor&&!PROTECTED.has(x.id));
- if(user.length<=1)return{ok:false,reason:'Le projet doit conserver au moins un niveau utilisateur.'};
+ const remaining=app.model.levels.filter(x=>!x.autoFloor&&x.id!==l.id&&x.id!=='foundations'&&x.id!=='roof');
+ if(!remaining.length)return{ok:false,reason:'Le projet doit conserver au moins un niveau habitable.'};
  return{ok:true,reason:''};
 }
 function roomNames(names,id){const out={};for(const [k,v] of Object.entries(names||{})){let keep=true;try{const x=JSON.parse(k);if(Array.isArray(x)&&String(x[0])===String(id))keep=false;}catch{}if(keep)out[k]=v;}return out;}
@@ -53,7 +53,7 @@ function init(){
  const d=document.createElement('dialog');d.id='levelDeleteDialog';d.innerHTML='<form id="levelDeleteForm"><h3 id="levelDeleteTitle">Supprimer le niveau ?</h3><div id="levelDeleteSummary" class="level-delete-summary"></div><p class="level-delete-warning">Les objets et automatismes liés seront supprimés avec le niveau. Vous pourrez utiliser ↶ Annuler après l’opération.</p><label><input id="levelDeleteAck" type="checkbox"> Je confirme la suppression.</label><div class="level-delete-actions"><button id="levelDeleteCancel" type="button">Annuler</button><button id="levelDeleteConfirm" type="submit" class="danger" disabled>Supprimer</button></div></form>';document.body.append(d);
  $('#levelDeleteAck').onchange=e=>$('#levelDeleteConfirm').disabled=!e.target.checked;$('#levelDeleteCancel').onclick=()=>d.close();$('#levelDeleteForm').onsubmit=e=>{e.preventDefault();if(!target)return;try{const l=remove(target);target=null;d.close();$('#statusSelection').textContent='Niveau « '+l.name+' » supprimé';}catch(err){alert(err.message);}};
  $('#levelSelect')?.addEventListener('change',()=>requestAnimationFrame(sync));new MutationObserver(sync).observe($('#levelSelect'),{childList:true,subtree:true});sync();
- root.PBPLevelDeleteReady=true;
+ root.PBPLevelDelete={canDelete,remove,open,current};root.PBPLevelDeleteReady=true;
 }
 if(document.readyState==='loading')root.addEventListener('DOMContentLoaded',init);else init();
 })(window);
