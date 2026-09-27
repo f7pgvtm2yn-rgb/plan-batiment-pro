@@ -1,4 +1,4 @@
-/* Plan Bâtiment Pro v0.16.15 — render scheduler and visibility gating.
+/* Plan Bâtiment Pro v0.16.16 — render scheduler and visibility gating.
    Coalesces repeated draw calls to one per animation frame and skips hidden views. */
 (function(root){
 'use strict';
@@ -31,13 +31,13 @@ function install(){
  document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>root.requestAnimationFrame(redrawVisible)));
  const level=$('#levelSelect');level?.addEventListener('change',()=>root.requestAnimationFrame(redrawVisible));
  root.PBPPerformance={
-  version:'0.16.15',
+  version:'0.16.16',
   metrics,
   revision:()=>Number(app.model?._pbpRevision)||0,
   invalidate:()=>{app.model._pbpRevision=(Number(app.model._pbpRevision)||0)+1;redrawVisible();},
   redraw:redrawVisible
  };
- const v=$('.version');if(v)v.textContent='v0.16.15';document.title='Plan Bâtiment Pro — v0.16.15';root.PBPPerformanceReady=true;
+ const v=$('.version');if(v)v.textContent='v0.16.16';document.title='Plan Bâtiment Pro — v0.16.16';root.PBPPerformanceReady=true;
 }
 if(document.readyState==='loading')root.addEventListener('DOMContentLoaded',install);else install();
 })(window);
