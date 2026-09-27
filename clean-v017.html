@@ -1,162 +1,228 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Plan Bâtiment Pro — v0.17.0 Clean Core</title>
-<link rel="stylesheet" href="clean-v017.css?v=0.17.0-ui2">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plan Bâtiment Pro — v0.17.0 Clean Core</title>
+  <style>
+:root{
+  --bg:#eef1f4;
+  --panel:#ffffff;
+  --line:#d9dee5;
+  --text:#1f2933;
+  --muted:#6b7280;
+  --accent:#245c7d;
+  --accent-soft:#eaf2f7;
+  --toolbar:#f7f8fa;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;color:var(--text);background:var(--bg)}
+button,select,input{font:inherit}
+button{border:1px solid var(--line);background:#fff;border-radius:6px;padding:7px 10px;cursor:pointer}
+button:hover{background:#f4f6f8}
+button.accent,.view-btn.active,.tool.active{background:var(--accent-soft);border-color:#a7c0cf;color:#153e56}
+#app{height:100%;display:grid;grid-template-rows:54px 1fr 30px}
+.topbar{display:flex;align-items:center;justify-content:space-between;background:#fff;border-bottom:1px solid var(--line);padding:0 12px;gap:12px}
+.brand{font-weight:750;white-space:nowrap;letter-spacing:.2px}
+.version{font-size:11px;font-weight:600;color:var(--muted)}
+.top-actions{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden}
+.zoom-controls{display:flex;align-items:center;gap:2px;padding-left:4px;border-left:1px solid var(--line)}
+.zoom-controls button{min-width:30px;padding:6px 8px}
+.zoom-controls .zoom-value{min-width:58px;font-size:11px;color:#53606d}
+.view-switch{display:flex;gap:4px;padding-left:4px;border-left:1px solid var(--line)}
+.file-button{border:1px solid var(--line);background:#fff;border-radius:6px;padding:7px 10px;cursor:pointer;white-space:nowrap}
+.file-button input{display:none}
+.workspace{position:relative;min-height:0;display:flex;overflow:hidden}
+.tools-panel{width:180px;background:var(--panel);border-right:1px solid var(--line);overflow:auto;padding:10px}
+.mode-title{font-weight:800;font-size:13px;padding:4px 3px 10px}
+.tool-section{border-top:1px solid #eef1f4;padding-top:8px;margin-top:8px}
+.section-title{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700;margin:2px 3px 6px}
+.tool{width:100%;text-align:left;margin-bottom:5px;padding:7px 8px}
+.hint{font-size:11px;line-height:1.35;color:var(--muted);margin:12px 3px}
+.canvas-shell{position:relative;display:flex;flex:1;min-width:0;min-height:0;background:#dfe4e9;overflow:hidden}
+.view-pane{position:relative;min-width:0;min-height:0;background:#f8fafc}
+.pane-2d{flex:1 1 auto}
+.pane-3d{flex:1 1 auto;background:#edf1f5}
+.pane-label{position:absolute;z-index:3;top:8px;left:10px;font-size:11px;font-weight:800;color:#53606d;background:rgba(255,255,255,.9);padding:4px 7px;border-radius:4px;border:1px solid rgba(0,0,0,.06)}
+canvas{width:100%;height:100%;display:block}
+.hidden{display:none!important}
+.splitter{width:6px;background:#d7dce2;cursor:col-resize;display:none;flex:0 0 6px}
+.splitter:hover{background:#b9c4cd}
+.properties-panel{position:absolute;z-index:20;top:10px;right:10px;width:218px;max-width:calc(100vw - 220px);max-height:calc(100% - 20px);background:rgba(255,255,255,.98);border:1px solid var(--line);border-radius:9px;overflow:auto;box-shadow:0 10px 28px rgba(34,45,55,.16)}
+.properties-header{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:7px 8px;background:rgba(255,255,255,.98);border-bottom:1px solid var(--line);font-size:11px}
+.properties-header button{padding:2px 8px}
+#propertiesBody{padding:8px}
+.prop-group{border-bottom:1px solid #edf0f2;padding-bottom:10px;margin-bottom:10px}
+.prop-title{font-weight:800;font-size:12px;margin-bottom:8px}
+.prop-row{display:grid;grid-template-columns:1fr 78px;gap:6px;align-items:center;margin-bottom:6px;font-size:11px}
+.prop-row input,.prop-row select{width:100%;border:1px solid var(--line);border-radius:5px;padding:5px 6px;background:#fff}
+.prop-help{font-size:11px;color:var(--muted);line-height:1.3}
+.statusbar{display:flex;align-items:center;gap:20px;background:#fff;border-top:1px solid var(--line);padding:0 10px;font-size:11px;color:#53606d;overflow:hidden;white-space:nowrap}
+dialog{border:1px solid #cad2da;border-radius:10px;padding:0;box-shadow:0 18px 60px rgba(0,0,0,.2);width:min(380px,90vw)}
+dialog::backdrop{background:rgba(30,40,50,.22)}
+dialog form{padding:18px;display:flex;flex-direction:column;gap:12px}
+dialog h3{margin:0 0 4px}
+dialog label{display:flex;align-items:center;gap:8px}
+.slider-label{display:grid!important;grid-template-columns:auto 1fr auto}
+.dialog-actions{display:flex;justify-content:flex-end;margin-top:6px}
+@media(max-width:900px){
+  .tools-panel{width:150px}
+  .properties-panel{width:205px;right:6px;top:6px;max-height:calc(100% - 12px)}
+  .brand{display:none}
+}
+
+.placement-settings{margin:10px 0 4px;padding:9px 8px;border:1px solid var(--line);border-radius:8px;background:#f8fafb}
+.placement-tool-name{font-size:12px;font-weight:750;margin:2px 0 8px;color:#314554}
+.setting-row{display:grid;grid-template-columns:1fr 76px;gap:6px;align-items:center;margin-bottom:6px;font-size:11px}
+.setting-row input{width:58px;border:1px solid var(--line);border-radius:5px;padding:5px 5px;background:#fff}
+.preset-note{font-size:10px;line-height:1.3;color:var(--muted);margin-top:5px}
+#planCanvas{touch-action:none;user-select:none;-webkit-user-select:none}
+#planCanvas.select-mode{cursor:default}
+#planCanvas.hover-wall{cursor:grab}
+#planCanvas.hover-corner{cursor:crosshair}
+#planCanvas.dragging-wall,#planCanvas.dragging-corner{cursor:grabbing}
+
+  
+#cleanSheetBar{height:38px;display:flex;align-items:stretch;background:#f7f9fa;border-top:1px solid #d5dfe5;border-bottom:1px solid #d5dfe5;min-width:0;overflow:hidden}
+.clean-sheet-caption{display:flex;align-items:center;padding:0 9px;font-size:9px;font-weight:800;color:#718591;border-right:1px solid #d5dfe5;letter-spacing:.5px}
+.clean-sheet-scroll{display:flex;align-items:stretch;gap:1px;overflow-x:auto;overflow-y:hidden;min-width:0}
+.clean-sheet{position:relative;display:flex;align-items:center;gap:5px;min-width:max-content;height:37px;border:0!important;border-right:1px solid #e0e6ea!important;border-radius:0!important;background:#f6f8fa!important;padding:0 11px!important;color:#48606e!important;font-size:10px!important}
+.clean-sheet.active{background:white!important;color:#174d68!important;box-shadow:inset 0 3px 0 #3f7895}
+.clean-sheet .dot{width:7px;height:7px;border-radius:50%;background:#adb8be}.clean-sheet.current .dot{background:#4f9b68}.clean-sheet.stale .dot{background:#d49336}.clean-sheet.error .dot{background:#a84330}
+.calc-card{position:absolute;left:10px;bottom:10px;z-index:18;max-width:min(520px,calc(100% - 20px));background:rgba(255,255,255,.96);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:11px;line-height:1.45;box-shadow:0 8px 24px rgba(30,50,65,.12)}
+.calc-card[hidden]{display:none}.calc-card .error{color:#9d3f2c;font-weight:650}.calc-card .warn{color:#755826}
+#app{grid-template-rows:54px minmax(0,1fr) 38px 30px}
+@media(max-width:700px){#app{grid-template-rows:54px minmax(0,1fr) 48px}.statusbar{display:none}#cleanSheetBar{height:48px}.clean-sheet{height:47px;font-size:9px!important;padding:0 8px!important}.clean-sheet-caption{display:none}}
+</style>
 </head>
 <body>
-<div id="cleanApp">
-  <header class="topbar">
-    <div class="brand">PLAN BÂTIMENT PRO <span class="version">v0.17.0 CLEAN CORE</span></div>
-    <div class="top-actions">
-      <button id="ccNew">Nouveau</button>
-      <button id="ccSave">Enregistrer</button>
-      <button id="ccExport">Exporter</button>
-      <label class="file-button">Importer<input id="ccImport" type="file" accept=".json"></label>
-      <button id="ccUndo" title="Annuler">↶</button>
-      <button id="ccRedo" title="Rétablir">↷</button>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">PLAN BÂTIMENT PRO <span class="version" title="Déplacement indépendant des coins et des murs">v0.17.0 CLEAN CORE</span></div>
+      <div class="top-actions">
+        <button id="newProjectBtn">Nouveau</button>
+        <button id="saveBtn">Enregistrer</button>
+        <button id="exportBtn">Exporter</button>
+        <label class="file-button">Importer<input id="importInput" type="file" accept=".json"></label>
+        <button id="undoBtn">↶</button>
+        <button id="redoBtn">↷</button>
 
-      <select id="ccLevelSelect" aria-label="Niveau actif"></select>
-      <button id="ccAddLevel">+ Niveau</button>
+        <select id="levelSelect"></select>
+        <button id="addLevelBtn">+ Niveau</button>
 
-      <button id="ccOverlayBtn" class="accent">◫ Superposition</button>
+        <button id="overlayBtn" class="accent">◫ Superposition</button>
 
-      <div class="zoom-controls">
-        <button id="ccZoomOut" aria-label="Dézoomer">−</button>
-        <button id="ccZoomReset" class="zoom-value">100 %</button>
-        <button id="ccZoomIn" aria-label="Zoomer">+</button>
+        <div class="zoom-controls" title="Le déplacement à deux doigts déplace le plan. Le zoom se fait ici ou avec Ctrl/⌘ + geste à deux doigts.">
+          <button id="zoomOutBtn" aria-label="Dézoomer">−</button>
+          <button id="zoomResetBtn" class="zoom-value">100 %</button>
+          <button id="zoomInBtn" aria-label="Zoomer">+</button>
+        </div>
+
+        <div class="view-switch">
+          <button data-view="2d" class="view-btn active">2D</button>
+          <button data-view="split" class="view-btn">2D + 3D</button>
+          <button data-view="3d" class="view-btn">3D</button>
+        </div>
       </div>
-      <div class="view-switch">
-        <button data-clean-view="2d" class="view-btn active">2D</button>
-        <button data-clean-view="split" class="view-btn">2D + 3D</button>
-        <button data-clean-view="3d" class="view-btn">3D</button>
-      </div>
-    </div>
-  </header>
+    </header>
 
-  <main class="workspace">
-    <aside class="tools-panel">
-      <div class="mode-title">OUTILS DU PROJET</div>
-      <div class="work-guide">Choisis ce que tu veux faire</div>
+    <main class="workspace">
+      <aside class="tools-panel">
+        <div class="mode-title">CONSTRUCTION</div>
 
-      <details class="work-category" open>
-        <summary>✏️ Dessiner le plan</summary>
-        <div class="work-content">
-          <small>Murs, cloisons, ouvertures, escaliers et sélection.</small>
+        <div class="tool-section">
+          <div class="section-title">Dessin</div>
           <button class="tool active" data-tool="select">↖ Sélection</button>
           <button class="tool" data-tool="wallExterior">▰ Mur extérieur</button>
           <button class="tool" data-tool="wallBearing">▰ Mur porteur</button>
           <button class="tool" data-tool="partition">▏ Cloison</button>
+          <button class="tool" data-tool="column">■ Poteau</button>
+          <button class="tool" data-tool="beam">▬ Poutre</button>
+          <button class="tool" data-tool="slab">▱ Dalle</button>
+          <button class="tool" data-tool="foundation">▰ Fondation</button>
+        </div>
+
+        <div id="placementSettings" class="placement-settings">
+          <div class="section-title">Réglages avant pose</div>
+          <div class="placement-tool-name" id="placementToolName">Mur extérieur</div>
+          <label class="setting-row"><span>Épaisseur</span><span><input id="presetThickness" type="number" min="0.01" max="2" step="0.01" value="0.32"> m</span></label>
+          <label class="setting-row"><span>Hauteur</span><span><input id="presetHeight" type="number" min="0.10" max="20" step="0.05" value="2.80"> m</span></label>
+          <div class="preset-note">Ces valeurs seront utilisées pour les prochains éléments tracés.</div>
+        </div>
+
+        <div class="tool-section">
+          <div class="section-title">Ouvertures</div>
           <button class="tool" data-tool="door">◩ Porte</button>
           <button class="tool" data-tool="window">▭ Fenêtre</button>
+        </div>
+
+        <div class="tool-section">
+          <div class="section-title">Circulation</div>
           <button class="tool" data-tool="opening">□ Trémie</button>
           <button class="tool" data-tool="stair">≋ Escalier</button>
         </div>
-      </details>
 
-      <details class="work-category">
-        <summary>🧱 Structure</summary>
-        <div class="work-content">
-          <small>Poteaux, poutres, fondations et éléments porteurs.</small>
-          <button class="tool" data-tool="column">■ Poteau</button>
-          <button class="tool" data-tool="beam">▬ Poutre</button>
-          <button id="ccFoundationsSheet">▰ Fondations</button>
+        <div class="tool-section">
+          <div class="section-title">Mesures</div>
+          <button class="tool" data-tool="dimension">↔ Cote</button>
         </div>
-      </details>
 
-      <details class="work-category">
-        <summary>🪵 Planchers & solivage</summary>
-        <div class="work-content">
-          <small>Solives, rives, trémies, entretoises et panneaux.</small>
-          <button id="ccCreateFloor">▤ Solivage auto</button>
+        <div class="hint">
+          En Sélection : glissez un <strong>rond au coin</strong> pour modifier l’angle ; glissez le <strong>corps du mur</strong> pour déplacer le mur entier. Échap annule le déplacement en cours.
         </div>
-      </details>
-
-      <details class="work-category">
-        <summary>⌂ Toiture & charpente</summary>
-        <div class="work-content">
-          <small>Ouvrir le feuillet toiture et lancer son calcul uniquement à la demande.</small>
-          <button id="ccRoofSheet">⌂ Toiture & charpente</button>
-        </div>
-      </details>
-
-      <details class="work-category">
-        <summary>✓ Projet & contrôles</summary>
-        <div class="work-content">
-          <button id="cc3DSheet">◇ Vue 3D</button>
-          <button id="ccLegacy">↩ v0.16.16 de secours</button>
-        </div>
-      </details>
-
-      <div class="hint">
-        En Sélection : glissez un <strong>rond au coin</strong> pour modifier l’angle ; glissez le <strong>corps du mur</strong> pour déplacer le mur entier. Échap annule le déplacement en cours.
-      </div>
-    </aside>
-
-    <section class="canvas-shell" id="ccCanvasShell">
-      <div id="ccView2D" class="view-pane pane-2d">
-        <div id="ccSheetBadge" class="pane-label">PLAN 2D</div>
-        <canvas id="ccCanvas2D"></canvas>
-      </div>
-      <div id="ccSplitter" class="splitter"></div>
-      <div id="ccView3D" class="view-pane pane-3d hidden">
-        <div class="pane-label">VUE 3D</div>
-        <canvas id="ccCanvas3D"></canvas>
-      </div>
-
-      <div id="ccDrawingToolbar" class="drawing-toolbar">
-        <span id="ccModeText" class="draw-title">Sélection</span>
-        <button id="ccPan">✥ Déplacer plan</button>
-        <button id="ccCancelDraw">Échap</button>
-      </div>
-
-      <aside id="cleanProperties" class="properties-panel" hidden>
-        <div class="properties-header"><strong>PROPRIÉTÉS</strong><button id="ccCloseProps">›</button></div>
-        <div id="ccPropertiesBody"></div>
       </aside>
-      <div id="ccCalcCard" class="calc-card" hidden></div>
-    </section>
-  </main>
 
-  <nav id="cleanSheetBar" aria-label="Feuillets du projet"></nav>
+      <section class="canvas-shell" id="canvasShell">
+        <div id="view2d" class="view-pane pane-2d">
+          <div class="pane-label">PLAN 2D</div>
+          <canvas id="planCanvas"></canvas>
+        </div>
 
-  <footer class="statusbar">
-    <span id="ccCoords">X: 0,00 m · Y: 0,00 m</span>
-    <span id="ccMeasure">Longueur: — · Angle: —</span>
-    <span id="ccSelection">Aucun élément sélectionné</span>
-    <span id="ccPerf">Clean Core · aucun calcul lourd actif</span>
-  </footer>
-</div>
+        <div id="splitter" class="splitter"></div>
 
-<dialog id="ccOverlayDialog">
-  <form method="dialog">
-    <h3>Superposition structurelle</h3>
-    <label><input type="checkbox" id="ccOverlayBelow" checked> Niveau inférieur</label>
-    <label><input type="checkbox" id="ccOverlayAbove"> Niveau supérieur</label>
-    <label><input type="checkbox" id="ccOverlayFoundations" checked> Fondations</label>
-    <label class="slider-label">Opacité <input id="ccOverlayOpacity" type="range" min="10" max="70" value="35"><span id="ccOverlayOpacityValue">35 %</span></label>
-    <div class="dialog-actions"><button value="cancel">Fermer</button></div>
-  </form>
-</dialog>
+        <div id="view3d" class="view-pane pane-3d hidden">
+          <div class="pane-label">VUE 3D</div>
+          <canvas id="view3dCanvas"></canvas>
+        </div>
+      </section>
 
-<button id="ccToolsFab" class="mobile-tools-fab">☰</button>
+      <aside id="propertiesPanel" class="properties-panel hidden">
+        <div class="properties-header">
+          <strong>PROPRIÉTÉS</strong>
+          <button id="closePropertiesBtn">›</button>
+        </div>
+        <div id="propertiesBody"></div>
+      </aside>
+    </main>
 
-<script src="geometry-tools.js?v=0.17.0-ui2"></script>
-<script src="spaces-core.js?v=0.17.0-ui2"></script>
-<script src="rim-core.js?v=0.17.0-ui2"></script>
-<script src="joist-coverage.js?v=0.17.0-ui2"></script>
-<script src="opening-framing-core.js?v=0.17.0-ui2"></script>
-<script src="blocking-core.js?v=0.17.0-ui2"></script>
-<script src="floor-detail-core.js?v=0.17.0-ui2"></script>
-<script src="coverage-core.js?v=0.17.0-ui2"></script>
-<script src="roof-forms.js?v=0.17.0-ui2"></script>
-<script src="foundations-core.js?v=0.17.0-ui2"></script>
-<script src="structure-core.js?v=0.17.0-ui2"></script>
-<script src="roof-core.js?v=0.17.0-ui2"></script>
-<script src="building-core.js?v=0.17.0-ui2"></script>
-<script src="clean-calculations-v017.js?v=0.17.0-ui2"></script>
-<script src="clean-core-v017.js?v=0.17.0-ui2"></script>
-</body>
-</html>
+    <nav id="cleanSheetBar" aria-label="Feuillets du projet"></nav>\n    <footer class="statusbar">
+      <span id="statusScale">Échelle 1:50</span>
+      <span id="statusCoords">X: 0,00 m · Y: 0,00 m</span>
+      <span id="statusMeasure">Longueur: — · Angle: —</span>
+      <span id="statusSnap">Aimantation ✓</span>
+      <span id="statusSelection">Aucun élément sélectionné</span>
+    </footer>
+  </div>
+
+  <dialog id="overlayDialog">
+    <form method="dialog">
+      <h3>Superposition structurelle</h3>
+      <label><input type="checkbox" id="overlayBelow" checked> Niveau inférieur</label>
+      <label><input type="checkbox" id="overlayAbove"> Niveau supérieur</label>
+      <label><input type="checkbox" id="overlayFoundations" checked> Fondations</label>
+
+      <label class="slider-label">
+        Opacité
+        <input id="overlayOpacity" type="range" min="10" max="70" value="35">
+        <span id="overlayOpacityValue">35 %</span>
+      </label>
+
+      <label><input type="checkbox" id="overlayLocked" checked> Verrouiller les éléments superposés</label>
+
+      <div class="dialog-actions">
+        <button value="cancel">Fermer</button>
+      </div>
+    </form>
+  </dialog>
+
+<script src="geometry-tools.js?v=0.17.0-exactshell"></script>\n<script src="spaces-core.js?v=0.17.0-exactshell"></script>\n<script src="rim-core.js?v=0.17.0-exactshell"></script>\n<script src="joist-coverage.js?v=0.17.0-exactshell"></script>\n<script src="opening-framing-core.js?v=0.17.0-exactshell"></script>\n<script src="blocking-core.js?v=0.17.0-exactshell"></script>\n<script src="floor-detail-core.js?v=0.17.0-exactshell"></script>\n<script src="coverage-core.js?v=0.17.0-exactshell"></script>\n<script src="roof-forms.js?v=0.17.0-exactshell"></script>\n<script src="foundations-core.js?v=0.17.0-exactshell"></script>\n<script src="structure-core.js?v=0.17.0-exactshell"></script>\n<script src="roof-core.js?v=0.17.0-exactshell"></script>\n<script src="building-core.js?v=0.17.0-exactshell"></script>\n<script src="clean-calculations-v017.js?v=0.17.0-exactshell"></script>\n<script src="clean-core-v017.js?v=0.17.0-exactshell"></script>\n</body>\n</html>
