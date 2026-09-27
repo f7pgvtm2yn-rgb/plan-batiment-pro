@@ -141,17 +141,6 @@ class Renderer3D{
  draw(){const c=this.ctx;c.clearRect(0,0,this.width,this.height);c.fillStyle='#edf2f5';c.fillRect(0,0,this.width,this.height);const m=this.app.model,levels=new Map(m.levels.map(l=>[l.id,l]));for(const e of m.elements.filter(e=>e.mode==='construction'&&!e.generator)){if(e.a&&e.b&&['wallExterior','wallBearing','partition','beam'].includes(e.type))this.wall(e,levels.get(e.levelId));}
   for(const s of this.app.sheets.list().filter(x=>['floor','foundations','roof'].includes(x.kind))){const r=this.app.sheets.result(s.id);if(!r)continue;for(const e of r.elements||[]){if(e.type==='slab'&&e.polygon)this.polygon(e);else if(e.a&&e.b)this.beam(e,levels.get(e.levelId)?.elevation||0,e.height,e.role==='loadTransferRequired'?'#b05b2d':'#a77d4f');}}
  }
- updatePlacementSettings(){
-  const panel=document.getElementById('placementSettings'),s=this.toolSettings[this.activeTool];
-  if(!panel||!s){if(panel)panel.style.display='none';return;}
-  panel.style.display='block';const name=document.getElementById('placementToolName');if(name)name.textContent=({wallExterior:'Mur extérieur',wallBearing:'Mur porteur',partition:'Cloison',foundation:'Fondation',beam:'Poutre',slab:'Dalle',column:'Poteau',door:'Porte',window:'Fenêtre',opening:'Trémie',stair:'Escalier',dimension:'Cote'})[this.activeTool]||this.activeTool;
-  const t=document.getElementById('presetThickness'),h=document.getElementById('presetHeight');if(t)t.value=Number(s.thickness??s.width??.1).toFixed(3).replace(/0+$/,'').replace(/\.$/,'');if(h)h.value=Number(s.height??.2).toFixed(2);
- }
- savePlacementSettings(){
-  const s=this.toolSettings[this.activeTool];if(!s)return;const t=Number(document.getElementById('presetThickness')?.value),h=Number(document.getElementById('presetHeight')?.value);
-  if(Number.isFinite(t)){if('thickness'in s)s.thickness=Math.max(.01,Math.min(2,t));else if('width'in s)s.width=Math.max(.01,Math.min(20,t));}
-  if(Number.isFinite(h))s.height=Math.max(.01,Math.min(20,h));this.updatePlacementSettings();
- }
   bind(){this.canvas.addEventListener('pointerdown',e=>{this.drag={id:e.pointerId,x:e.clientX,y:e.clientY};this.canvas.setPointerCapture?.(e.pointerId);});this.canvas.addEventListener('pointermove',e=>{if(!this.drag||e.pointerId!==this.drag.id)return;const dx=e.clientX-this.drag.x,dy=e.clientY-this.drag.y;this.angle+=dx*.008;this.tilt=Math.max(.18,Math.min(1.12,this.tilt+dy*.004));this.drag.x=e.clientX;this.drag.y=e.clientY;this.app.requestDraw();});this.canvas.addEventListener('pointerup',e=>{if(this.drag?.id===e.pointerId)this.drag=null;});this.canvas.addEventListener('wheel',e=>{e.preventDefault();this.zoom=Math.max(14,Math.min(95,this.zoom*(e.deltaY<0?1.08:.92)));this.app.requestDraw();},{passive:false});}
 }
 class CleanApp{
@@ -169,6 +158,23 @@ class CleanApp{
   if(!document.getElementById('ccPan'))addSection('Navigation',[{id:'ccPan',text:'✥ Déplacer le plan'},{id:'ccCancelDraw',text:'Échap / annuler le tracé'},{id:'ccLegacy',text:'↩ v0.16.16 de secours'}]);
   if(!document.getElementById('ccModeText')){const x=document.createElement('span');x.id='ccModeText';x.hidden=true;document.body.append(x);}
   if(!document.getElementById('ccToolsFab')){const x=document.createElement('button');x.id='ccToolsFab';x.hidden=true;document.body.append(x);}
+ }
+ updatePlacementSettings(){
+  const panel=document.getElementById('placementSettings'),s=this.toolSettings[this.activeTool];
+  if(!panel||!s){if(panel)panel.style.display='none';return;}
+  panel.style.display='block';
+  const name=document.getElementById('placementToolName');
+  if(name)name.textContent=({wallExterior:'Mur extérieur',wallBearing:'Mur porteur',partition:'Cloison',foundation:'Fondation',beam:'Poutre',slab:'Dalle',column:'Poteau',door:'Porte',window:'Fenêtre',opening:'Trémie',stair:'Escalier',dimension:'Cote'})[this.activeTool]||this.activeTool;
+  const t=document.getElementById('presetThickness'),h=document.getElementById('presetHeight');
+  if(t)t.value=Number(s.thickness??s.width??.1).toFixed(3).replace(/0+$/,'').replace(/\.$/,'');
+  if(h)h.value=Number(s.height??.2).toFixed(2);
+ }
+ savePlacementSettings(){
+  const s=this.toolSettings[this.activeTool];if(!s)return;
+  const t=Number(document.getElementById('presetThickness')?.value),h=Number(document.getElementById('presetHeight')?.value);
+  if(Number.isFinite(t)){if('thickness'in s)s.thickness=Math.max(.01,Math.min(2,t));else if('width'in s)s.width=Math.max(.01,Math.min(20,t));}
+  if(Number.isFinite(h))s.height=Math.max(.01,Math.min(20,h));
+  this.updatePlacementSettings();
  }
   requestDraw(){if(this.frame)return;this.frame=requestAnimationFrame(()=>{this.frame=0;if(this.viewMode!=='3d')this.r2.draw();if(this.viewMode!=='2d')this.r3.draw();});}
  currentStory(){const s=this.sheets.active();return s.kind==='story'?s:null;}
@@ -227,7 +233,7 @@ class CleanApp{
  updateZoom(){$('#ccZoomReset').textContent=Math.round(this.r2.scale*100)+' %';}
  setStatus(text){$('#ccPerf').textContent=text;}
  updateStatusMeasure(el){if(!el?.a||!el?.b)return;const L=dist(el.a,el.b),a=(Math.atan2(el.b.y-el.a.y,el.b.x-el.a.x)*180/Math.PI+360)%360;$('#ccMeasure').textContent='Longueur: '+fmt(L)+' m · Angle: '+fmt(a,1)+'°';}
- renderProperties(){const panel=$('#cleanProperties'),body=$('#ccPropertiesBody'),e=this.selected;if(!e){panel.classList.add('hidden');$('#ccSelection').textContent='Aucun élément sélectionné';return;}panel.classList.remove('hidden');$('#ccSelection').textContent=({wallExterior:'Mur extérieur',wallBearing:'Mur porteur',partition:'Cloison',beam:'Poutre',column:'Poteau',door:'Porte',window:'Fenêtre',opening:'Trémie',stair:'Escalier'})[e.type]||e.type;let html='<div><b>'+esc($('#ccSelection').textContent)+'</b></div>';
+ renderProperties(){const panel=$('#cleanProperties'),body=$('#ccPropertiesBody'),e=this.selected;if(!e){panel.classList.add('hidden');$('#ccSelection').textContent='Aucun élément sélectionné';return;}panel.classList.remove('hidden');$('#ccSelection').textContent=({wallExterior:'Mur extérieur',wallBearing:'Mur porteur',partition:'Cloison',foundation:'Fondation',beam:'Poutre',slab:'Dalle',column:'Poteau',door:'Porte',window:'Fenêtre',opening:'Trémie',stair:'Escalier',dimension:'Cote'})[e.type]||e.type;let html='<div><b>'+esc($('#ccSelection').textContent)+'</b></div>';
   if(e.a&&e.b){html+='<label class="prop-row"><span>Épaisseur (m)</span><input data-prop="thickness" type="number" step="0.01" value="'+esc(e.thickness??'')+'"></label><label class="prop-row"><span>Hauteur (m)</span><input data-prop="height" type="number" step="0.05" value="'+esc(e.height??'')+'"></label><label class="prop-row"><span>Ax</span><input data-prop="a.x" type="number" step="0.01" value="'+esc(e.a.x)+'"></label><label class="prop-row"><span>Ay</span><input data-prop="a.y" type="number" step="0.01" value="'+esc(e.a.y)+'"></label><label class="prop-row"><span>Bx</span><input data-prop="b.x" type="number" step="0.01" value="'+esc(e.b.x)+'"></label><label class="prop-row"><span>By</span><input data-prop="b.y" type="number" step="0.01" value="'+esc(e.b.y)+'"></label>';}
   else{for(const [label,k] of [['X','x'],['Y','y'],['Largeur (m)','width'],['Profondeur (m)','depth'],['Hauteur (m)','height'],['Rotation (°)','rotation']])html+='<label class="prop-row"><span>'+label+'</span><input data-prop="'+k+'" type="number" step="0.01" value="'+esc(e[k]??'')+'"></label>';}
   html+='<div class="prop-actions"><button id="ccDeleteSelected" class="danger-action">Supprimer</button></div>';body.innerHTML=html;body.querySelectorAll('[data-prop]').forEach(input=>input.onchange=()=>{const k=input.dataset.prop,v=Number(input.value);if(!Number.isFinite(v))return;this.model.mutate(()=>{if(k.includes('.')){const [a,b]=k.split('.');e[a][b]=v;}else e[k]=v;},'propriété');this.renderProperties();});$('#ccDeleteSelected').onclick=()=>this.deleteSelected();
