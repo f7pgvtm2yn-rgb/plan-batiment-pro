@@ -1,4 +1,4 @@
-/* PBP v0.7: preliminary checks ONLY; never an execution design or compliance certificate. */
+/* PBP v0.16.13: preliminary checks ONLY; never an execution design or compliance certificate. */
 (function(root){
 'use strict';
 const TAG='pbp-floors-v1',G0=9.80665,EPS=.004;
@@ -17,6 +17,22 @@ const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const dot=(a,b)=>a.x*b.x+a.y*b.y;
 const sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y});
 const isSupport=e=>e&&e.mode==='construction'&&!e.generator&&['wallExterior','wallBearing','beam'].includes(e.type)&&finitePoint(e.a)&&finitePoint(e.b)&&dist(e.a,e.b)>.05;
+const cross=(a,b)=>a.x*b.y-a.y*b.x;
+function pointSegDistance(p,a,b){const ab=sub(b,a),L2=dot(ab,ab);if(!(L2>1e-10))return dist(p,a);const t=Math.max(0,Math.min(1,dot(sub(p,a),ab)/L2)),q={x:a.x+ab.x*t,y:a.y+ab.y*t};return dist(p,q);}
+function lineSupportBelow(model,f,el){
+ if(!finitePoint(el?.a)||!finitePoint(el?.b))return null;const v=sub(el.b,el.a),L=dist(el.a,el.b);if(!(L>.05))return null;const u={x:v.x/L,y:v.y/L};
+ let best=null;for(const s of model.elements||[]){if(!isSupport(s)||s.levelId!==f.sourceLevelId)continue;const sv=sub(s.b,s.a),SL=dist(s.a,s.b),su={x:sv.x/SL,y:sv.y/SL};if(Math.abs(cross(u,su))>.08)continue;
+  const d=Math.min(pointSegDistance(el.a,s.a,s.b),pointSegDistance(el.b,s.a,s.b),pointSegDistance(s.a,el.a,el.b),pointSegDistance(s.b,el.a,el.b));
+  const tol=(Math.max(0,num(el.thickness)||0)+Math.max(0,num(s.thickness)||0))/2+.03;if(d>tol)continue;
+  const x1=dot(sub(s.a,el.a),u),x2=dot(sub(s.b,el.a),u),over=Math.max(0,Math.min(L,Math.max(x1,x2))-Math.max(0,Math.min(x1,x2))),ratio=over/L;
+  if(ratio>=.85&&(!best||ratio>best.ratio))best={support:s,ratio,distance:d};
+ }return best;
+}
+function pointSupportBelow(model,f,el){
+ const p=finitePoint({x:el?.x,y:el?.y})?{x:el.x,y:el.y}:finitePoint(el?.a)?el.a:null;if(!p)return null;
+ let best=null;for(const s of model.elements||[]){if(!isSupport(s)||s.levelId!==f.sourceLevelId)continue;const d=pointSegDistance(p,s.a,s.b),tol=Math.max(.04,(Math.max(0,num(s.thickness)||0))/2+.03);if(d<=tol&&(!best||d<best.distance))best={support:s,distance:d};}return best;
+}
+function heavyPartition(el){return el?.type==='partition'&&['concrete','brick','block'].includes(el.materialSpec?.type);}
 const makeIssue=(code,text,severity='warning')=>({code,text,severity});
 function defaults(){return {schema:1,foundation:{autoDepth:false,stripScope:false,frostDepth:null,studyDepth:null,minFootingHeight:null,minBeamHeight:null},floors:[]};}
 function floorDefaults(){return {id:'',name:'Plancher',levelId:'r1',sourceLevelId:'ground',supportA:'',supportB:'',system:'wood',enabled:true,spacing:.4,b:75,h:225,autoSection:false,grade:'unknown',service:1,restraint:false,transfer:'unknown',loadsConfirmed:false,panel:22,panelDensity:650,screed:0,screedDensity:2000,finishes:.15,ceiling:.15,insulation:.1,partitions:.5,q:1.5,p:2,finishThickness:15,ceilingThickness:13,slabThickness:null,houseScope:false,clearHeight:2.5,deflection:300,showDeck:false};}
@@ -115,7 +131,7 @@ function floorReport(model,input){
   const contains=p=>{const z=sub(p,geo.a.a),x=dot(z,geo.u),y=dot(z,geo.v);return x>geo.low+EPS&&x<geo.high-EPS&&y>Math.min(0,geo.y)+EPS&&y<Math.max(0,geo.y)-EPS;};
   for(const el of model.elements||[]){
    if(el.mode!=='construction'||el.generator||el.levelId!==f.levelId)continue;
-   if(['wallExterior','wallBearing','column'].includes(el.type)){
+   if(['wallExterior','wallBearing','column'].includes(el.type)||heavyPartition(el)){
     let inside=false;
     if(finitePoint(el.a)&&finitePoint(el.b)){
      const p=sub(el.a,geo.a.a),q=sub(el.b,geo.a.a),aa=[dot(p,geo.u),dot(p,geo.v)],bb=[dot(q,geo.u),dot(q,geo.v)];
@@ -123,7 +139,11 @@ function floorReport(model,input){
      for(let d=0;d<2;d++){const delta=bb[d]-aa[d];if(Math.abs(delta)<1e-10){if(aa[d]<lo[d]||aa[d]>hi[d])t1=-1;}else{let x=(lo[d]-aa[d])/delta,y=(hi[d]-aa[d])/delta;if(x>y)[x,y]=[y,x];t0=Math.max(t0,x);t1=Math.min(t1,y);}}
      inside=t0<=t1;
     }else if(finitePoint({x:el.x,y:el.y}))inside=contains({x:el.x,y:el.y});
-    if(inside){blocked=true;issue('transfer','Mur porteur ou poteau détecté sur la travée : reprise ponctuelle/linéaire non calculée.','error');break;}
+    if(inside){
+     const stacked=el.type==='column'?pointSupportBelow(model,f,el):lineSupportBelow(model,f,el);
+     if(stacked){issue('transfer-stacked',(heavyPartition(el)?'Cloison lourde':'Mur/poteau porteur')+' repris directement par '+(stacked.support.type==='beam'?'une poutre':'un appui porteur')+' du niveau inférieur (recouvrement géométrique détecté). Alignement, appui réel et continuité jusqu’aux fondations restent à vérifier.');continue;}
+     blocked=true;issue(heavyPartition(el)?'heavy-partition-transfer':'transfer',(heavyPartition(el)?'Cloison lourde':'Mur porteur ou poteau')+' détecté sur la travée sans appui porteur directement aligné dessous : reprise linéaire/ponctuelle à dimensionner, les entretoises seules ne sont pas considérées comme un appui.','error');break;
+    }
    }
   }
   const linkedOpenings=(model.elements||[]).filter(e=>e.mode==='construction'&&e.type==='opening'&&(e.levelId===f.levelId||e.targetLevelId===f.levelId||e.linkedFloorId===f.id));
@@ -190,7 +210,7 @@ function report(model){
  const missing=(model.levels||[]).filter(l=>l.id!=='roof'&&l.id!=='foundations'&&l.elevation>base&&!s.floors.some(f=>f.levelId===l.id));
  return {floors,foundation:foundation(model),missing,elements:floors.flatMap(r=>r.elements),globalNotice:'Chaque étage exige une descente de charges jusqu’aux fondations. Les charges des étages ne sont PAS multipliées arbitrairement sur les solives inférieures.'};
 }
-const api={TAG,SOURCES,defaults,floorDefaults,settings,foundation,bay,mass,beamCheck,floorReport,report,isSupport};
+const api={TAG,SOURCES,defaults,floorDefaults,settings,foundation,bay,mass,beamCheck,floorReport,report,isSupport,lineSupportBelow,pointSupportBelow,heavyPartition};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 if(root)root.PBPStructure=api;
 })(typeof window!=='undefined'?window:globalThis);
