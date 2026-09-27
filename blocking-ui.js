@@ -16,7 +16,7 @@ function installWizard(){
   }
   if(step===2){const r=root.PBPJoistWizard.getResult?.();if(r?.blocking&&!$('#jwBlockingResult')){const result=body.querySelector('.jw-result');if(result){const line=document.createElement('div');line.id='jwBlockingResult';line.innerHTML='<br>Entretoises : <b>'+r.blocking.memberCount+' pièce(s)</b> · '+r.blocking.rowCount+' ligne(s) · '+fmt(r.blocking.totalLength)+' m.';result.append(line);}}}
  }
- const obs=new MutationObserver(enhance);obs.observe(dlg,{subtree:true,childList:true});dlg.addEventListener('toggle',enhance);enhance();
+ const obs=new MutationObserver(enhance);obs.observe(dlg,{subtree:true,childList:true,attributes:true,attributeFilter:['open']});dlg.addEventListener('toggle',enhance);enhance();
 }
 function init(){installWizard();const v=$('.version');if(v)v.textContent='v0.16.11';document.title='Plan Bâtiment Pro — v0.16.11';root.PBPBlockingUIReady=true;}
 if(document.readyState==='loading')root.addEventListener('DOMContentLoaded',init);else init();
