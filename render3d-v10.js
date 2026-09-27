@@ -1,4 +1,4 @@
-/* v0.16.12 depth-buffered solid rendering.
+/* v0.16.13 depth-buffered solid rendering.
    Visual cleanup only: model geometry, dimensions and structural calculations are unchanged. */
 (function(){'use strict';const C=PBPPrecision,G=PBPGeometry,app=planApp,$=s=>document.querySelector(s),fallback=ConstructionRenderer3D.prototype.draw;
 const palette={concrete:'#a7afb5',brick:'#c08d79',block:'#b2b4af',timber:'#bd9b69',panel:'#cfb88c',insulation:'#e7d793',ravoirage:'#c3b9a7',screed:'#b8b8ae',finish:'#d1c1ad',ceiling:'#e2e5e8',joists:'#ad8654',rafters:'#a67f4f',ridge:'#8c643d',purlin:'#8a633d',trussChord:'#a77d4f',trussWeb:'#c09260',roofInsulation:'#e4d482',liningInside:'#9abbd0',liningOutside:'#99b78f',acousticLining:'#b99ab9',drywallPartition:'#c8bbc9'};
@@ -61,7 +61,7 @@ function mesh(data){const triangles=[],lines=[],issues=[];let maxDepth=30;
  for(const e of data.elements)if(e.type==='roofWallExtension')wallWedge(e,palette[e.materialSpec?.type]||'#b3c0c8');
  const sloped=data.elements.filter(e=>e.type==='slopedBeam');for(const e of sloped)beam3d(e,palette[e.role]||palette.timber);
  const wallTypes=new Set(['wallExterior','wallBearing','partition','foundation','beam']),walls=data.elements.filter(e=>wallTypes.has(e.type)&&e.a&&e.b);
- const floorTimberRoles=new Set(['joist','edgeJoist','joistSegment','openingTrimmer','openingHeader','blocking']);
+ const floorTimberRoles=new Set(['joist','edgeJoist','joistSegment','openingTrimmer','openingHeader','blocking','panelJointSupport']);
  const joistMember=e=>e.role==='joists'||e.role==='rimJoist'||floorTimberRoles.has(e.floorRole);
  const ordinary=walls.filter(e=>!joistMember(e)),joists=walls.filter(joistMember);
  const paint=w=>w.e.role==='wallFloorExtension'?(palette[w.e.materialSpec?.type]||'#b3c0c8'):(palette[w.e.role]||palette[w.e.materialSpec?.type]||(w.e.type==='foundation'||w.e.foundationRole?'#999fa5':w.e.type==='partition'?'#ccd2d7':'#b3c0c8'));
