@@ -1,4 +1,4 @@
-/* Plan Bâtiment Pro v0.16.1 — safe level deletion, independent of workspace layout. */
+/* Plan Bâtiment Pro v0.16.5 — safe level deletion, independent of workspace layout. */
 (function(root){
 'use strict';
 const app=root.planApp,$=s=>document.querySelector(s),clone=v=>JSON.parse(JSON.stringify(v));
@@ -15,7 +15,7 @@ function canDelete(l){
 }
 function roomNames(names,id){const out={};for(const [k,v] of Object.entries(names||{})){let keep=true;try{const x=JSON.parse(k);if(Array.isArray(x)&&String(x[0])===String(id))keep=false;}catch{}if(keep)out[k]=v;}return out;}
 function stats(id){
- const m=app.model,els=(m.elements||[]).filter(e=>e.levelId===id),ids=new Set(els.map(e=>e.id));
+ const m=app.model,els=(m.elements||[]).filter(e=>[e.levelId,e.referenceLevelId,e.placementLevelId,e.sourceLevelId,e.targetLevelId].includes(id)),ids=new Set(els.map(e=>e.id));
  return{elements:els.length,floors:(m.buildingDesign?.floors||[]).filter(f=>f.belowId===id||f.aboveId===id||f.id===id).length,structural:(m.structureDesign?.floors||[]).filter(f=>f.levelId===id||f.sourceLevelId===id).length,envelopes:(m.envelopeDesign?.assemblies||[]).filter(a=>a.levelId===id||ids.has(a.hostId)).length,roofs:(m.roofDesign?.groups||[]).filter(g=>g.supportLevelId===id).length,sources:(m.planSources||[]).filter(s=>s.levelId===id).length};
 }
 function rebuild(){
@@ -28,8 +28,8 @@ function refresh(){
 }
 function remove(id){
  const m=app.model,l=m.levels.find(x=>x.id===id),g=canDelete(l);if(!g.ok)throw Error(g.reason);const oldZ=Number(l.elevation)||0;m.commit();
- const removed=new Set((m.elements||[]).filter(e=>e.levelId===id).map(e=>e.id));
- m.elements=(m.elements||[]).filter(e=>e.levelId!==id&&!removed.has(e.hostWallId)&&!removed.has(e.sourceWallId));
+ const removed=new Set((m.elements||[]).filter(e=>[e.levelId,e.referenceLevelId,e.placementLevelId,e.sourceLevelId,e.targetLevelId].includes(id)).map(e=>e.id));
+ m.elements=(m.elements||[]).filter(e=>![e.levelId,e.referenceLevelId,e.placementLevelId,e.sourceLevelId,e.targetLevelId].includes(id)&&!removed.has(e.hostWallId)&&!removed.has(e.sourceWallId));
  m.levels=(m.levels||[]).filter(x=>x.id!==id&&!(x.autoFloor&&(x.belowId===id||x.aboveId===id)));
  if(m.buildingDesign){const d=root.PBPBuilding?.settings?root.PBPBuilding.settings(m.buildingDesign):clone(m.buildingDesign);d.floors=(d.floors||[]).filter(f=>f.belowId!==id&&f.aboveId!==id&&f.id!==id);if(d.materials)delete d.materials[id];m.buildingDesign=d;}
  if(m.structureDesign){const d=root.PBPStructure?.settings?root.PBPStructure.settings(m.structureDesign):clone(m.structureDesign);d.floors=(d.floors||[]).filter(f=>f.levelId!==id&&f.sourceLevelId!==id);m.structureDesign=d;}
