@@ -23,13 +23,14 @@ prototype.restore=function(serialized){
 };
 function report(){
   const m=app.model;
-  const key=JSON.stringify([m.foundationAutomation,m.structureDesign,m.levels,m.elements]);
-  if(key!==cacheKey){cached=F.compute(m);cacheKey=key;}
+  if(window.PBPSheets&&!window.PBPSheets.needs('foundations',m))return window.PBPSheets.emptyFoundation(m);
+  const key=Number(m._pbpRevision)||0;
+  if(key!==cacheKey||!cached){cached=F.compute(m);cacheKey=key;}
   return cached;
 }
 function refresh(){app.renderer2d?.draw();app.renderer3d?.draw();}
 function badge(r){
-  if(!panelReady)return;
+  if(!panelReady)return;if(window.PBPSheets&&!window.PBPSheets.needs('foundations')){$('#faBadge').hidden=true;return;}
   const s=r.settings,active=s.enabled;
   $('#faState').textContent=active?'Suivi lié aux murs activé':'Suivi désactivé';
   $('#faShow').disabled=!active;
