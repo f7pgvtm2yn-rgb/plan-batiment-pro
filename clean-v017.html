@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Plan Bâtiment Pro — v0.17.0 Clean Core</title>
+<link rel="stylesheet" href="clean-v017.css?v=0.17.0">
+</head>
+<body>
+<div id="cleanApp">
+  <header class="clean-top">
+    <div class="clean-brand">PLAN BÂTIMENT PRO <span class="clean-version">v0.17.0 CLEAN CORE</span></div>
+    <div class="clean-top-actions">
+      <button id="ccNew" class="secondary">Nouveau</button>
+      <button id="ccSave">💾 <span class="desktop-label">Enregistrer</span></button>
+      <button id="ccExport" class="secondary">Exporter</button>
+      <label class="clean-file secondary">Importer<input id="ccImport" type="file" accept=".json"></label>
+      <button id="ccUndo" title="Annuler">↶</button>
+      <button id="ccRedo" title="Rétablir">↷</button>
+      <button id="ccZoomOut" title="Dézoomer">−</button>
+      <button id="ccZoomReset" title="Recentrer">100%</button>
+      <button id="ccZoomIn" title="Zoomer">＋</button>
+    </div>
+  </header>
+  <main class="clean-workspace">
+    <aside class="clean-tools">
+      <h2>OUTILS</h2>
+      <div class="helper">Choisis ce que tu veux faire</div>
+      <details class="clean-group" open>
+        <summary>✏️ Dessiner le plan</summary>
+        <div class="clean-group-body">
+          <button class="clean-tool active" data-tool="select">↖ Sélection / déplacement</button>
+          <button class="clean-tool" data-tool="wallExterior">▰ Mur extérieur</button>
+          <button class="clean-tool" data-tool="wallBearing">▰ Mur porteur</button>
+          <button class="clean-tool" data-tool="partition">▏ Cloison</button>
+          <button class="clean-tool" data-tool="door">◩ Porte</button>
+          <button class="clean-tool" data-tool="window">▭ Fenêtre</button>
+          <button class="clean-tool" data-tool="opening">□ Trémie</button>
+          <button class="clean-tool" data-tool="stair">≋ Escalier</button>
+        </div>
+      </details>
+      <details class="clean-group">
+        <summary>🧱 Structure</summary>
+        <div class="clean-group-body">
+          <button class="clean-tool" data-tool="beam">▬ Poutre</button>
+          <button class="clean-tool" data-tool="column">■ Poteau</button>
+          <div class="clean-note">Fondations et planchers sont calculés sur leurs feuillets dédiés.</div>
+        </div>
+      </details>
+      <details class="clean-group">
+        <summary>🪵 Planchers & solivage</summary>
+        <div class="clean-group-body">
+          <button id="ccCreateFloor">＋ Créer / ouvrir le solivage</button>
+          <div class="clean-note">Le calcul ne s'exécute qu'à l'ouverture du feuillet Solivage.</div>
+        </div>
+      </details>
+      <details class="clean-group">
+        <summary>⌂ Toiture & charpente</summary>
+        <div class="clean-group-body">
+          <button id="ccRoofSheet">Ouvrir le feuillet Toiture</button>
+          <div class="clean-note">La charpente reste en cache tant que le bâtiment n'est pas modifié.</div>
+        </div>
+      </details>
+      <details class="clean-group">
+        <summary>✓ Projet & contrôles</summary>
+        <div class="clean-group-body">
+          <button id="ccFoundationsSheet">Fondations</button>
+          <button id="cc3DSheet">Vue 3D</button>
+          <button id="ccLegacy">Ouvrir la v0.16.16</button>
+          <div class="clean-note">La v0.16.16 reste disponible pendant la consolidation.</div>
+        </div>
+      </details>
+    </aside>
+    <section class="clean-stage">
+      <div id="ccView2D" class="clean-view">
+        <div id="ccSheetBadge" class="clean-badge">RDC</div>
+        <canvas id="ccCanvas2D"></canvas>
+      </div>
+      <div id="ccView3D" class="clean-view hidden">
+        <div class="clean-badge">VUE 3D — calcul à la demande</div>
+        <canvas id="ccCanvas3D"></canvas>
+      </div>
+      <div class="clean-panel">
+        <span id="ccModeText">Sélection</span>
+        <button id="ccPan">✥ Déplacer plan</button>
+        <button id="ccCancelDraw">Échap</button>
+      </div>
+      <aside id="cleanProperties" hidden>
+        <div class="clean-prop-head"><span>PROPRIÉTÉS</span><button id="ccCloseProps">×</button></div>
+        <div id="ccPropertiesBody" class="clean-prop-body"></div>
+      </aside>
+      <div id="ccCalcCard" class="clean-calc-card" hidden></div>
+    </section>
+  </main>
+  <nav id="cleanSheetBar" aria-label="Feuillets du projet"></nav>
+  <footer class="clean-status">
+    <span id="ccCoords">X 0,00 · Y 0,00</span>
+    <span id="ccMeasure">Longueur — · Angle —</span>
+    <span id="ccSelection">Aucun élément sélectionné</span>
+    <span id="ccPerf">Clean Core · aucun calcul lourd actif</span>
+  </footer>
+</div>
+<button id="ccToolsFab" class="clean-fab">☰</button>
+
+<script src="geometry-tools.js?v=0.17.0"></script>
+<script src="spaces-core.js?v=0.17.0"></script>
+<script src="rim-core.js?v=0.17.0"></script>
+<script src="joist-coverage.js?v=0.17.0"></script>
+<script src="opening-framing-core.js?v=0.17.0"></script>
+<script src="blocking-core.js?v=0.17.0"></script>
+<script src="floor-detail-core.js?v=0.17.0"></script>
+<script src="coverage-core.js?v=0.17.0"></script>
+<script src="roof-forms.js?v=0.17.0"></script>
+<script src="foundations-core.js?v=0.17.0"></script>
+<script src="structure-core.js?v=0.17.0"></script>
+<script src="roof-core.js?v=0.17.0"></script>
+<script src="building-core.js?v=0.17.0"></script>
+<script src="clean-calculations-v017.js?v=0.17.0"></script>
+<script src="clean-core-v017.js?v=0.17.0"></script>
+</body>
+</html>
