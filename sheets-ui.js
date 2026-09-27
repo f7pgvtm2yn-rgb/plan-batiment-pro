@@ -3,7 +3,7 @@
 'use strict';
 const app=root.planApp,S=root.PBPSheets,$=s=>document.querySelector(s);
 if(!app||!S)throw Error('Feuillets indisponibles.');
-let last2D=null,internalView=false,mobileOpen=false;
+let last2D=null,internalView=false,mobileOpen=false,pendingRevision=false;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function sheetStatusLabel(x){return x==='current'?'À jour':x==='stale'?'À actualiser':'Jamais calculé';}
 function setView(mode){const b=document.querySelector('[data-view="'+mode+'"]');if(!b)return;internalView=true;b.click();internalView=false;}
@@ -86,7 +86,9 @@ function init(){
  $('#rfOpen')?.addEventListener('click',()=>{if(S.active()?.kind!=='roof')activate('roof');},true);
  for(const id of ['#faOpen','#stFoundationOpen'])$(id)?.addEventListener('click',()=>{if(S.active()?.kind!=='foundations')activate('foundations');},true);
  renderAll();
- root.addEventListener('pbp:model-revision',()=>{S.invalidateAll();renderAll();});
+ root.addEventListener('pbp:model-revision',()=>{S.invalidateAll();if(app.dragWall){pendingRevision=true;return;}renderAll();});
+ $('#planCanvas')?.addEventListener('pointerup',()=>{if(pendingRevision){pendingRevision=false;renderAll();}},true);
+ $('#planCanvas')?.addEventListener('pointercancel',()=>{if(pendingRevision){pendingRevision=false;renderAll();}},true);
  root.addEventListener('pbp:sheet-status',renderAll);root.addEventListener('pbp:sheet-change',renderAll);
  const levels=$('#levelSelect');if(levels)new MutationObserver(renderAll).observe(levels,{childList:true,subtree:true});
  const current=S.active();if(current)activate(current.id);
