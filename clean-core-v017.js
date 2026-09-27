@@ -4,7 +4,7 @@
 'use strict';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const CALC=root.PBPCleanCalc,B=root.PBPBuilding,S=root.PBPStructure;
-const VERSION='0.17.0',PX_PER_M=50,EPS=.004,LINE_TYPES=new Set(['wallExterior','wallBearing','partition','beam','foundation','dimension']);
+const VERSION='0.17.0',PX_PER_M=50,EPS=.004,WALL_TYPES=new Set(['wallExterior','wallBearing','partition','foundation','beam']),LINE_TYPES=new Set([...WALL_TYPES,'dimension']);
 const EDITABLE_LINES=new Set(['wallExterior','wallBearing','partition','beam']);
 const uid=()=>Math.random().toString(36).slice(2,10);
 const clone=v=>JSON.parse(JSON.stringify(v));
@@ -75,14 +75,31 @@ class Sheets{
   this.app.view3D=s.kind==='3d';this.app.bus.emit('sheetChanged',{sheet:s,entry});this.app.requestDraw();this.app.renderUI();
  }
 }
+function wallFill(e,overlay=false){if(overlay)return'#8ea3b0';if(e.type==='wallBearing')return'#273a49';if(e.type==='partition')return'#7b8790';if(e.type==='foundation')return'#69747c';if(e.type==='beam')return'#50616d';return'#344c5d';}
+function nodeKey(p){const q=500;return Math.round(p.x*q)+','+Math.round(p.y*q);}
+function buildWallPaths(elements){
+ const groups=new Map(),paths=[];
+ for(const el of elements){if(!el.a||!el.b||!WALL_TYPES.has(el.type))continue;const key=el.type+'|'+Number(el.thickness??.2).toFixed(4);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(el);}
+ for(const group of groups.values()){
+  const edges=group.map(el=>({el,aKey:nodeKey(el.a),bKey:nodeKey(el.b),used:false})),nodes=new Map();
+  const addNode=(key,p,i)=>{if(!nodes.has(key))nodes.set(key,{p:{...p},edges:[]});nodes.get(key).edges.push(i);};
+  edges.forEach((e,i)=>{addNode(e.aKey,e.el.a,i);addNode(e.bKey,e.el.b,i);});
+  const walk=(start,idx)=>{const pts=[{...nodes.get(start).p}],els=[];let key=start,closed=false,guard=0;while(idx!=null&&guard++<edges.length+5){const e=edges[idx];if(e.used)break;e.used=true;els.push(e.el);const next=e.aKey===key?e.bKey:e.aKey;pts.push({...nodes.get(next).p});if(next===start){closed=true;break;}const n=nodes.get(next);if(!n||n.edges.length!==2)break;const ni=n.edges.find(i=>!edges[i].used);if(ni==null)break;key=next;idx=ni;}if(els.length)paths.push({points:pts,closed,thickness:els[0].thickness??.2,representative:els[0]});};
+  for(const [key,n] of nodes)if(n.edges.length!==2)for(const i of n.edges)if(!edges[i].used)walk(key,i);
+  for(let i=0;i<edges.length;i++)if(!edges[i].used)walk(edges[i].aKey,i);
+ }
+ return paths;
+}
 function lineColor(e,overlay=false){if(overlay)return'#8299a6';return e.type==='wallBearing'?'#263a49':e.type==='partition'?'#78868f':e.type==='beam'?'#745f4c':e.type==='foundation'?'#68757d':'#344f61';}
 class Renderer2D{
  constructor(app,canvas){this.app=app;this.canvas=canvas;this.ctx=canvas.getContext('2d');this.scale=1;this.pan={x:0,y:0};this.width=1;this.height=1;new ResizeObserver(()=>this.resize()).observe(canvas.parentElement);this.resize();}
  resize(){const r=this.canvas.parentElement.getBoundingClientRect(),dpr=root.devicePixelRatio||1;this.canvas.width=Math.max(1,Math.floor(r.width*dpr));this.canvas.height=Math.max(1,Math.floor(r.height*dpr));this.canvas.style.width=r.width+'px';this.canvas.style.height=r.height+'px';this.ctx.setTransform(dpr,0,0,dpr,0,0);this.width=r.width;this.height=r.height;this.app.requestDraw?.();}
  world(p){return{x:this.width/2+p.x*PX_PER_M*this.scale+this.pan.x,y:this.height/2+p.y*PX_PER_M*this.scale+this.pan.y};}
  screen(p){return{x:(p.x-this.width/2-this.pan.x)/(PX_PER_M*this.scale),y:(p.y-this.height/2-this.pan.y)/(PX_PER_M*this.scale)};}
- drawGrid(){const c=this.ctx,step=PX_PER_M*this.scale*.5;if(step<8)return;c.save();c.strokeStyle='#d7dfe4';c.lineWidth=.7;const ox=((this.width/2+this.pan.x)%step+step)%step,oy=((this.height/2+this.pan.y)%step+step)%step;c.beginPath();for(let x=ox;x<this.width;x+=step){c.moveTo(x,0);c.lineTo(x,this.height);}for(let y=oy;y<this.height;y+=step){c.moveTo(0,y);c.lineTo(this.width,y);}c.stroke();c.restore();}
- drawLine(e,alpha=1,generated=false){const a=this.world(e.a),b=this.world(e.b),c=this.ctx;c.save();c.globalAlpha=alpha;c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.lineCap='butt';c.strokeStyle=generated?(e.role==='loadTransferRequired'?'#b05b2d':'#9a7449'):lineColor(e);c.lineWidth=Math.max(1,(Number(e.thickness)||.04)*PX_PER_M*this.scale);if(e.role==='loadTransferRequired')c.setLineDash([7,4]);c.stroke();c.restore();}
+ drawGrid(){const c=this.ctx,minor=PX_PER_M*this.scale*.5,major=PX_PER_M*this.scale;if(minor<8)return;c.save();c.lineWidth=1;const ox=(this.width/2+this.pan.x)%minor,oy=(this.height/2+this.pan.y)%minor;for(let x=ox;x<this.width;x+=minor){const m=Math.abs(((x-(this.width/2+this.pan.x))/major)-Math.round((x-(this.width/2+this.pan.x))/major))<.05;c.strokeStyle=m?'#d2d9df':'#e9edf0';c.beginPath();c.moveTo(x,0);c.lineTo(x,this.height);c.stroke();}for(let y=oy;y<this.height;y+=minor){const m=Math.abs(((y-(this.height/2+this.pan.y))/major)-Math.round((y-(this.height/2+this.pan.y))/major))<.05;c.strokeStyle=m?'#d2d9df':'#e9edf0';c.beginPath();c.moveTo(0,y);c.lineTo(this.width,y);c.stroke();}c.restore();}
+ drawWallBatch(elements,alpha=1,overlay=false){const paths=buildWallPaths(elements),c=this.ctx;if(!paths.length)return;c.save();c.globalAlpha=alpha;c.lineJoin='miter';c.miterLimit=30;c.lineCap='butt';for(const p of paths){const pts=p.points.map(q=>this.world(q));c.beginPath();c.moveTo(pts[0].x,pts[0].y);for(let i=1;i<pts.length;i++)c.lineTo(pts[i].x,pts[i].y);if(p.closed)c.closePath();c.strokeStyle=overlay?'#667f8f':'#142b3a';c.lineWidth=Math.max(3,p.thickness*PX_PER_M*this.scale+2);c.stroke();}for(const p of paths){const pts=p.points.map(q=>this.world(q));c.beginPath();c.moveTo(pts[0].x,pts[0].y);for(let i=1;i<pts.length;i++)c.lineTo(pts[i].x,pts[i].y);if(p.closed)c.closePath();c.strokeStyle=wallFill(p.representative,overlay);c.lineWidth=Math.max(2,p.thickness*PX_PER_M*this.scale);c.stroke();}c.restore();}
+drawOpening(e,alpha=1,overlay=false){const c=this.ctx,p=this.world(e),w=(Number(e.width)||.9)*PX_PER_M*this.scale;c.save();c.globalAlpha=alpha;c.strokeStyle=overlay?'#8da1af':(e.type==='window'?'#2f6d86':'#725f4b');c.lineWidth=3;c.beginPath();c.moveTo(p.x-w/2,p.y);c.lineTo(p.x+w/2,p.y);c.stroke();if(e.type==='door'){c.lineWidth=1;c.beginPath();c.arc(p.x-w/2,p.y,w,0,-Math.PI/2,true);c.stroke();}c.restore();}
+drawLine(e,alpha=1,generated=false){const a=this.world(e.a),b=this.world(e.b),c=this.ctx;c.save();c.globalAlpha=alpha;c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.lineCap='butt';c.strokeStyle=generated?(e.role==='loadTransferRequired'?'#b05b2d':'#9a7449'):lineColor(e);c.lineWidth=Math.max(1,(Number(e.thickness)||.04)*PX_PER_M*this.scale);if(e.role==='loadTransferRequired')c.setLineDash([7,4]);c.stroke();c.restore();}
  drawRect(e,alpha=1,generated=false){const c=this.ctx,w=Number(e.width)||.9,d=Number(e.depth)||.2,x=Number(e.x)||0,y=Number(e.y)||0,a=(Number(e.rotation)||0)*Math.PI/180,u={x:Math.cos(a),y:Math.sin(a)},v={x:-Math.sin(a),y:Math.cos(a)},pts=[[-w/2,-d/2],[w/2,-d/2],[w/2,d/2],[-w/2,d/2]].map(q=>this.world({x:x+u.x*q[0]+v.x*q[1],y:y+u.y*q[0]+v.y*q[1]}));c.save();c.globalAlpha=alpha;c.beginPath();pts.forEach((p,i)=>i?c.lineTo(p.x,p.y):c.moveTo(p.x,p.y));c.closePath();c.fillStyle=e.type==='opening'?'rgba(255,255,255,.45)':e.type==='stair'?'rgba(145,125,100,.25)':e.type==='column'?'#536674':generated?'rgba(165,135,90,.25)':'rgba(100,125,140,.18)';c.fill();c.strokeStyle=e.type==='opening'?'#a06d45':'#647985';c.lineWidth=1.3;if(e.type==='opening')c.setLineDash([5,4]);c.stroke();c.restore();}
  drawPolygon(e,alpha=.25){const ps=e.polygon;if(!Array.isArray(ps)||ps.length<3)return;const c=this.ctx;c.save();c.globalAlpha=alpha;c.beginPath();ps.map(p=>this.world(p)).forEach((p,i)=>i?c.lineTo(p.x,p.y):c.moveTo(p.x,p.y));c.closePath();if(!e.void){c.fillStyle=e.role==='panel'?'#ceb58a':'#bfc8cd';c.fill();}c.strokeStyle='#8497a2';if(e.void)c.setLineDash([6,4]);c.stroke();c.restore();}
  baseLevel(sheet){if(sheet.kind==='story')return sheet.levelId;if(sheet.kind==='floor')return this.app.sheets.configForFloor(sheet.floorId)?.belowId;if(sheet.kind==='foundations')return this.app.model.data.foundationAutomation?.sourceLevelId||'ground';if(sheet.kind==='roof')return sheet.levelId;return this.app.model.activeLevelId;}
