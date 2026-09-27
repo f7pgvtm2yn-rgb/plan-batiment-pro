@@ -1,4 +1,4 @@
-/* Drawing toolbar v0.12.1. Display only: no structural dimensions are changed. */
+/* Drawing toolbar v0.16.16. Display only: no structural dimensions are changed. */
 (function(root){
 'use strict';
 const TYPES=new Set(['wallExterior','wallBearing','partition','beam','foundation']);
@@ -71,7 +71,7 @@ function revealMeasure(){change({dimensions:true,manual:true,selectedOnly:false}
 function overlap(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;}
 function drawAutomatic(renderer){
   lastLayout=[];
-  if(app.viewMode==='3d')return;
+  if(app.dragWall||app.viewMode==='3d')return;
   const rows=descriptors(app.model,current(),app.selectedElement?.id);
   if(!rows.length)return;
   const c=renderer.ctx,W=renderer.width,H=renderer.height;
@@ -181,7 +181,7 @@ function init(){
   $('[data-tool="dimension"]')?.addEventListener('click',revealMeasure);
   new ResizeObserver(()=>{if(!panel.hidden)panel.style.top=(bar.getBoundingClientRect().height+6)+'px';}).observe(bar);
   document.querySelectorAll('.view-btn').forEach(b=>b.addEventListener('click',()=>{if(!scheduled){scheduled=true;requestAnimationFrame(()=>{scheduled=false;syncUI();});}}));
-  $('.version').textContent='v0.12.1';document.title='Plan Bâtiment Pro — v0.12.1';
+  $('.version').textContent='v0.16.16';document.title='Plan Bâtiment Pro — v0.16.16';
   ready=true;root.PBPDrawingReady=true;api.refresh=refresh;api.getLayout=()=>lastLayout.map(x=>({...x,rect:{...x.rect}}));api.getSettings=current;
   syncUI();app.renderer2d?.resize();app.renderer3d?.resize();
 }
