@@ -10,7 +10,7 @@ function setView(mode){const b=document.querySelector('[data-view="'+mode+'"]');
 function setLevel(id){if(!id)return;app.model.activeLevelId=id;const sel=$('#levelSelect');if(sel&&[...sel.options].some(o=>o.value===id)){sel.value=id;sel.dispatchEvent(new Event('change',{bubbles:true}));}}
 function computeActive(sheet){
  if(sheet.kind==='floor'){root.PBPBuildingUI?.calculateNow?.();S.markCalculated(sheet.id);return;}
- if(sheet.kind==='foundations'){root.PBPFoundationUI?.getReport?.();root.PBPStructureUI?.getReport?.();S.markCalculated(sheet.id);return;}
+ if(sheet.kind==='foundations'){root.PBPFoundationUI?.getReport?.();S.markCalculated(sheet.id);return;}
  if(sheet.kind==='roof'){root.PBPRoofUI?.getReport?.();S.markCalculated(sheet.id);return;}
  if(sheet.kind==='3d'){root.PBPBuildingUI?.getReport?.();root.PBPFoundationUI?.getReport?.();root.PBPStructureUI?.getReport?.();root.PBPRoofUI?.getReport?.();S.markCalculated(sheet.id);}
 }
