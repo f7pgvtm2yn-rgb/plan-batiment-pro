@@ -1,4 +1,4 @@
-/* v0.16.3 — piecewise wall seating, timber rims, and lower-wall upstands.
+/* v0.16.4 — piecewise wall seating, timber rims, and lower-wall upstands.
    Geometry + existing partial C24 comparison; NOT an execution detail. */
 (function(root){
 'use strict';
@@ -100,7 +100,14 @@ function pieceAtPoint(s,p){
  const t=dot(sub(p,s.p),s.u);return (s.pieces||[]).find(x=>t>=x.low-.006&&t<=x.high+.006)||null;
 }
 function longitudinalPieces(s){
- return perimeterPieces({...s,sharedRanges:s.sharedLongitudinalRanges||[]});
+ // Each floor zone keeps its own physical longitudinal rim, including on a shared wall.
+ return (s.pieces||[]).map(piece=>({...piece}));
+}
+function longitudinalAxis(piece,side,beamWidth){
+ const E=Number(piece?.width),B=Number(beamWidth);
+ if(!(E>0)||!(B>0)||!side?.n)return null;
+ const offset=E/2+B/2;
+ return {a:add(piece.a,mul(side.n,offset)),b:add(piece.b,mul(side.n,offset)),offset};
 }
 function wallExtensionPieces(data){
  const groups=new Map();
@@ -144,7 +151,7 @@ function calculate(model,c,r,G,S){
  });
  const all=data.flatMap(d=>d.sides);
  if(!all.some(s=>s.masonry&&(s.pieces||[]).some(p=>p.width>MIN_SEAT+EPS)))return r;
- const sharedBearing=[],sharedLongitudinalCandidates=[];
+ const sharedBearing=[];
  for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++){
   const a=all[i],b=all[j],overlap=a.face===b.face?null:overlapSegment(a,b);if(!overlap)continue;
   a.shared=b.shared=true;
@@ -160,19 +167,6 @@ function calculate(model,c,r,G,S){
     const wallWidth=Math.min(wa,wb),seatA=seatForWidth(wallWidth),seatB=seatForWidth(wallWidth),width=wallWidth-seatA-seatB;
     if(width<-EPS)return fail('rim-double-bearing','Mur trop étroit pour deux appuis opposés respectant le minimum de 5 cm.');
     sharedBearing.push({a,b,overlap:{low:xs[k],high:xs[k+1],a:add(a.p,mul(a.u,xs[k])),b:add(a.p,mul(a.u,xs[k+1]))},wallWidth,width:Math.max(0,width),seatA,seatB,material:materialAtPoint(a,midp)===materialAtPoint(b,midp)?materialAtPoint(a,midp):'unknown'});
-   }
-  }
-  if(!a.bearing&&!b.bearing&&a.masonry&&b.masonry){
-   const cuts=[overlap.low,overlap.high];
-   for(const p of a.pieces||[])if(p.high>overlap.low+EPS&&p.low<overlap.high-EPS){cuts.push(Math.max(overlap.low,p.low),Math.min(overlap.high,p.high));}
-   for(const p of b.pieces||[]){const aa=dot(sub(p.a,a.p),a.u),bb=dot(sub(p.b,a.p),a.u);if(Math.max(aa,bb)>overlap.low+EPS&&Math.min(aa,bb)<overlap.high-EPS){cuts.push(Math.max(overlap.low,Math.min(aa,bb)),Math.min(overlap.high,Math.max(aa,bb)));}}
-   const xs=[...new Set(cuts.map(x=>+x.toFixed(8)))].sort((x,y)=>x-y);
-   for(let k=0;k<xs.length-1;k++){
-    if(xs[k+1]-xs[k]<=.004)continue;
-    const mid=add(a.p,mul(a.u,(xs[k]+xs[k+1])/2)),pa=pieceAtPoint(a,mid),pb=pieceAtPoint(b,mid);
-    if(!pa||!pb||pa.wall.id!==pb.wall.id)continue;
-    const wallWidth=Math.min(pa.width,pb.width),oa=add(a.p,mul(a.u,xs[k])),ob=add(a.p,mul(a.u,xs[k+1]));
-    sharedLongitudinalCandidates.push({a,b,overlap:{low:xs[k],high:xs[k+1],a:oa,b:ob},wallWidth,wallId:pa.wall.id,material:pa.material===pb.material?pa.material:'unknown'});
    }
   }
   if(a.bearing!==b.bearing)issue('rim-mixed-directions','Une travée porte sur cet appui partagé tandis que la voisine lui est parallèle : le solivage est conservé et la rive longitudinale est traitée du côté parallèle.');
@@ -224,13 +218,6 @@ function calculate(model,c,r,G,S){
  candidates.sort((a,b)=>a.b*a.h-b.b*b.h||a.h-b.h);
  let selected=null,plans=null;for(const s of candidates){const p=trial(s.b,s.h);if(p){selected=s;plans=p;break;}}
  if(!selected)return fail('rim-section','Aucune section d’essai ne satisfait le comparateur avec la longueur totale et les appuis représentés. Faire étudier une autre section ou un appui supplémentaire.');
- const sharedLongitudinal=sharedLongitudinalCandidates.filter(x=>x.wallWidth>=selected.b/1000+2*EDGE_CLEARANCE-EPS);
- for(const x of sharedLongitudinal){
-  x.a.sharedLongitudinalRanges.push({low:x.overlap.low,high:x.overlap.high});
-  const aa=dot(sub(x.overlap.a,x.b.p),x.b.u),bb=dot(sub(x.overlap.b,x.b.p),x.b.u);
-  x.b.sharedLongitudinalRanges.push({low:Math.min(aa,bb),high:Math.max(aa,bb)});
- }
- const unmergedLongitudinal=sharedLongitudinalCandidates.length-sharedLongitudinal.length;
  const delta=(selected.h-original.h)/1000;
  r.section=selected;r.required+=delta;r.requiredTop+=delta;r.totalThickness+=delta;r.gap=r.top-r.requiredTop;
  r.layers=r.layers.filter(l=>l.role!=='reserve').map(l=>l.role==='joists'?{...l,h:selected.h/1000}:l.z>=r.sourceTop+original.h/1000-EPS?{...l,z:l.z+delta}:l);
@@ -260,10 +247,10 @@ function calculate(model,c,r,G,S){
   // along that wall on the inside of the bay. Shared walls get one on each relevant side.
   for(const s of d.sides.filter(s=>s.longitudinal)){
    let pi=0;for(const piece of longitudinalPieces(s)){
-    const inset=(piece.width+p.b/1000)/2,ra=add(piece.a,mul(s.n,inset)),rb=add(piece.b,mul(s.n,inset));if(dist(ra,rb)<=.05)continue;
-    const entry={wallIds:[piece.wall.id],length:dist(ra,rb),thickness:p.b/1000,height:p.h/1000,wallWidth:piece.width,face:d.index,side:s.side,shared:s.shared};
+    const axis=longitudinalAxis(piece,s,p.b/1000);if(!axis||dist(axis.a,axis.b)<=.05)continue;
+    const entry={wallIds:[piece.wall.id],length:dist(axis.a,axis.b),thickness:p.b/1000,height:p.h/1000,wallWidth:piece.width,face:d.index,side:s.side,shared:s.shared,wallFaceOffset:piece.width/2,axisOffset:axis.offset,placementRule:'wall-face-plus-half-rim'};
     r.rim.longitudinal.push(entry);
-    if(c.enabled&&r.complete)r.elements.push({...common,id:c.id+':rim-long:'+d.index+':'+s.side+':'+pi++,type:'beam',role:'rimJoist',floorRole:'rimJoist',a:ra,b:rb,thickness:p.b/1000,height:p.h/1000,zBase:r.sourceTop,sourceWallIds:entry.wallIds,wallWidth:piece.width,nonLoadBearing:false,rimFace:d.index,rimSide:s.side,rimAxisA:{...piece.a},rimAxisB:{...piece.b}});
+    if(c.enabled&&r.complete)r.elements.push({...common,id:c.id+':rim-long:'+d.index+':'+s.side+':'+pi++,type:'beam',role:'rimJoist',floorRole:'rimJoist',rimKind:s.shared?'shared-wall-face':'wall-face',a:axis.a,b:axis.b,thickness:p.b/1000,height:p.h/1000,zBase:r.sourceTop,sourceWallIds:entry.wallIds,wallWidth:piece.width,nonLoadBearing:false,rimFace:d.index,rimSide:s.side,rimAxisA:{...piece.a},rimAxisB:{...piece.b},wallFaceOffset:piece.width/2,axisOffset:axis.offset,placementRule:'wall-face-plus-half-rim'});
    }
   }
   if(c.enabled&&r.complete)for(const l of r.layers.filter(l=>l.role!=='joists')){
@@ -286,14 +273,6 @@ function calculate(model,c,r,G,S){
   r.rim.wallExtensions.push(entry);
   if(c.enabled&&r.complete)r.elements.push({...common,id:c.id+':wall-upstand:'+i,type:w.type,role:'wallFloorExtension',floorRole:'wallExtension',a:{...x.a},b:{...x.b},thickness:Number(w.thickness),height:selected.h/1000,zBase:r.sourceTop,sourceWallId:w.id,sourceLevelId:c.belowId,materialSpec:material,nonLoadBearing:false,wallContinuation:true});
  }
- // When two adjacent fields run parallel to the same wall, use one centered
- // common rim on the shared portion if the wall can physically contain the joist width.
- for(let i=0;i<sharedLongitudinal.length;i++){
-  const x=sharedLongitudinal[i],L=dist(x.overlap.a,x.overlap.b);if(L<=.05)continue;
-  const entry={wallIds:[x.wallId],length:L,thickness:selected.b/1000,height:selected.h/1000,wallWidth:x.wallWidth,shared:true,common:true};
-  r.rim.longitudinal.push(entry);
-  if(c.enabled&&r.complete)r.elements.push({...common,id:c.id+':rim-long-common:'+i,type:'beam',role:'rimJoist',floorRole:'rimJoist',rimKind:'shared-longitudinal',a:{...x.overlap.a},b:{...x.overlap.b},thickness:selected.b/1000,height:selected.h/1000,zBase:r.sourceTop,sourceWallIds:[x.wallId],wallWidth:x.wallWidth,nonLoadBearing:false,shared:true,common:true,rimAxisA:{...x.overlap.a},rimAxisB:{...x.overlap.b}});
- }
  // Two joist fields bearing face-to-face keep two calculated seats.
  // No artificial grey closure is generated: the lower wall itself continues upward.
  for(let i=0;i<sharedBearing.length;i++){
@@ -309,10 +288,10 @@ function calculate(model,c,r,G,S){
  const sizes=[...new Set(r.rim.entries.map(e=>e.seatCount===2?'mur '+(e.wallWidth*100).toFixed(1)+' cm : appuis '+((e.seatA||0)*100).toFixed(1)+' + '+((e.seatB||0)*100).toFixed(1)+' cm':'mur '+(e.wallWidth*100).toFixed(1)+' cm : appui '+((e.seat||0)*100).toFixed(1)+' cm'))];
  if(sizes.length)issue('rim-result','Appuis de rive calculés automatiquement : '+sizes.join(' ; ')+'. Les rives bois ont la hauteur des solives : '+(selected.h/10).toFixed(1)+' cm.');
  if(r.rim.commonRims.length)issue('rim-common','Deux solivages face à face : '+r.rim.commonRims.length+' appui(s) commun(s) calculé(s) avec une portée d’appui de chaque côté ; aucune fermeture grise artificielle n’est ajoutée.');
- if(r.rim.longitudinal.length)issue('rim-longitudinal','Rives longitudinales : '+r.rim.longitudinal.length+' rive(s) bois ajoutée(s) le long des murs parallèles au solivage.');
- if(sharedLongitudinal.length)issue('rim-longitudinal-shared',sharedLongitudinal.length+' portion(s) de mur commun : deux rives parallèles ont été remplacées par une seule rive commune centrée sur le mur.');
- if(unmergedLongitudinal)issue('rim-longitudinal-double-required',unmergedLongitudinal+' portion(s) conservent deux rives distinctes car la largeur du mur ne permet pas de centrer la section de rive avec le jeu minimal représenté.');
+ if(r.rim.longitudinal.length)issue('rim-longitudinal','Rives longitudinales : '+r.rim.longitudinal.length+' pièce(s) bois positionnée(s) au nu de la face du mur ; axe = E/2 + B/2 vers la zone de plancher.');
+ if(r.rim.longitudinal.some(e=>e.shared))issue('rim-longitudinal-shared','Mur commun avec plancher des deux côtés : chaque zone conserve sa propre rive sur sa face. Aucune rive n’est fusionnée ni centrée dans le mur.');
  issue('rim-scope','Appui automatique = max(5 cm ; épaisseur du mur / 2 − 0,5 cm). Aucun connecteur ou sabot n’est pris en compte dans cette version. Appuis, écrasement, humidité et fixations restent à justifier.');
+ issue('rim-face-rule','Règle géométrique du projet : toute rive longitudinale parallèle à un mur support est tangente au nu de la face desservie ; son axe est décalé de E/2 + B/2. Deux zones opposées créent deux pièces distinctes, une par face.');
  issue('rim-wall-upstand','Le mur inférieur est prolongé sur son axe et son épaisseur d’origine jusqu’au dessus des solives uniquement. Il ne remonte pas dans le panneau ni les couches supérieures. Cette continuité géométrique ne constitue pas une validation de détail d’exécution.');
  if(r.rim.wallExtensions.some(e=>e.material==='unknown'))issue('rim-material','Matériau d’un mur prolongé non renseigné : seul son volume géométrique est quantifié.');
  return r;
@@ -345,7 +324,7 @@ function install(B,G,S,F){
   base.elements=base.floors.flatMap(r=>r.elements);base.levels=base.floors.flatMap(r=>r.level?[r.level]:[]);base.quantities=B.quantities(m,base.floors,f);return base;
  };
 }
-const api={MIN_SEAT,EDGE_CLEARANCE,seatForWidth,calculate,install,offsetPolygon,area,sidePieces,mergedSharedRanges,perimeterPieces,longitudinalPieces,wallExtensionPieces,widthAtPoint,pieceAtPoint,miterRimSlabs,joinRimJoistAxes,getLastPreview:()=>lastPreview};
+const api={MIN_SEAT,EDGE_CLEARANCE,seatForWidth,calculate,install,offsetPolygon,area,sidePieces,mergedSharedRanges,perimeterPieces,longitudinalPieces,longitudinalAxis,wallExtensionPieces,widthAtPoint,pieceAtPoint,miterRimSlabs,joinRimJoistAxes,getLastPreview:()=>lastPreview};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 if(root){root.PBPRims=api;if(root.PBPBuilding&&root.PBPGeometry&&root.PBPStructure&&root.PBPFoundations)install(root.PBPBuilding,root.PBPGeometry,root.PBPStructure,root.PBPFoundations);}
 })(typeof window!=='undefined'?window:globalThis);
