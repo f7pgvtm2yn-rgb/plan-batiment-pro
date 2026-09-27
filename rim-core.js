@@ -1,4 +1,4 @@
-/* v0.16.8 — piecewise wall seating, timber rims, and lower-wall upstands.
+/* v0.16.9 — piecewise wall seating, timber rims, and lower-wall upstands.
    Geometry + existing partial C24 comparison; NOT an execution detail. */
 (function(root){
 'use strict';
@@ -121,6 +121,33 @@ function joistConflictsLongitudinalWall(a,b,sides,beamWidth){
  }
  return false;
 }
+function coveredLength(s){
+ const spans=(s.pieces||[]).map(p=>({low:Math.max(0,p.low),high:Math.min(s.L,p.high)})).filter(p=>p.high-p.low>.004).sort((a,b)=>a.low-b.low),merged=[];
+ for(const p of spans){const last=merged.at(-1);if(last&&p.low<=last.high+.004)last.high=Math.max(last.high,p.high);else merged.push({...p});}
+ return merged.reduce((n,p)=>n+p.high-p.low,0);
+}
+function fullLongitudinalSide(s){
+ return !!(s?.longitudinal&&s.masonry&&s.L>.05&&coveredLength(s)>=s.L-.012);
+}
+function longitudinalGridAnchor(d,s,along,beamWidth){
+ if(!fullLongitudinalSide(s))return null;
+ const widths=(s.pieces||[]).map(p=>Number(p.width)).filter(w=>w>0);
+ if(!widths.length)return null;
+ const width=Math.max(...widths),base=add(s.p,mul(s.u,s.L/2)),axis=add(base,mul(s.n,width/2+beamWidth/2));
+ return {position:dot(sub(axis,d.a),along),width,axis,side:s};
+}
+function joistGrid(d,beamWidth,target){
+ const B=Number(beamWidth),T=Number(target);if(!(B>0)||!(T>0)||!(d.width>B))return null;
+ const along=unit(sub(d.b,d.a));if(!along)return null;
+ const j=d.direction,startSide=d.sides[(j+3)%4],endSide=d.sides[(j+1)%4];
+ const start=longitudinalGridAnchor(d,startSide,along,B),end=longitudinalGridAnchor(d,endSide,along,B);
+ let low=start?start.position:B/2,high=end?end.position:d.width-B/2;
+ if(high<low){const t=low;low=high;high=t;}
+ const span=high-low;if(span<.01)return null;
+ const spaces=Math.max(1,Math.ceil(span/T)),spacing=span/spaces,positions=[];
+ for(let i=0;i<=spaces;i++)positions.push(low+i*spacing);
+ return {along,low,high,span,spaces,spacing,positions,start,end,edgeCount:(start?1:0)+(end?1:0),count:positions.length,interiorCount:Math.max(0,positions.length-(start?1:0)-(end?1:0))};
+}
 function wallExtensionPieces(data){
  const groups=new Map();
  for(const d of data||[])for(const s of d.sides||[])if(s.masonry)for(const piece of s.pieces||[]){
@@ -217,11 +244,11 @@ function calculate(model,c,r,G,S){
  function trial(b,h){
   const plans=[];
   for(const d of data){
-   const remaining=d.width-b/1000;if(remaining<=.01||d.calcSpan>8)return null;
-   const f=r.bays[d.index].floor,target=value(f.spacing,.4),n=Math.max(1,Math.ceil(remaining/target));if(n>250)return null;
-   const spacing=remaining/n,loadSpacing=Math.max(spacing,r.bays[d.index].spacing);
+   if(d.calcSpan>8)return null;
+   const f=r.bays[d.index].floor,target=value(f.spacing,.4),grid=joistGrid(d,b/1000,target);if(!grid||grid.count>251)return null;
+   const spacing=grid.spacing,loadSpacing=Math.max(spacing,r.bays[d.index].spacing);
    const check=S.beamCheck(f,d.calcSpan,loadSpacing,b,h);if(!check.screened)return null;
-   plans.push({d,b,h,n,spacing,check});
+   plans.push({d,b,h,n:grid.spaces,spacing,check,grid});
   }return plans;
  }
  const original={...r.section},candidates=[];
@@ -242,19 +269,21 @@ function calculate(model,c,r,G,S){
  const common={generator:'pbp-building-v09',assemblyId:c.id,levelId:c.id,mode:'construction',locked:true,designStatus:'prestudy'};
  for(const p of plans){
   const d=p.d,j=d.direction,along=mul(sub(d.b,d.a),1/d.width),across=sub(d.opposite,d.a),old=r.bays[d.index];
-  old.cutLength=d.cut;old.calculationSpan=d.calcSpan;old.spacing=p.spacing;old.count=p.n+1;old.check=p.check;old.suggestion=p.check;
-  old.area=area(d.inner);old.G=S.mass(old.floor)+(p.n+1)*d.cut/old.area*420*9.80665/1000*(p.b/1000)*(p.h/1000);
+  old.cutLength=d.cut;old.calculationSpan=d.calcSpan;old.spacing=p.spacing;old.count=p.grid.count;old.check=p.check;old.suggestion=p.check;
+  old.area=area(d.inner);old.G=S.mass(old.floor)+p.grid.count*d.cut/old.area*420*9.80665/1000*(p.b/1000)*(p.h/1000);
   old.massKg=old.G*1000/9.80665;old.permanentTotal=old.area*old.G;old.variableTotal=old.area*Number(old.floor.q);
   old.lineG=old.G*d.calcSpan/2;old.lineQ=Number(old.floor.q)*d.calcSpan/2;
   old.totalThickness=r.totalThickness;old.baseZ=r.sourceTop;old.clearHeight=r.clearHeight;old.elements=[];
-  r.rim.bays.push({cutLength:d.cut,axisSpan:old.geometry.L,comparisonSpan:d.calcSpan,spacing:p.spacing,count:p.n+1});
-  for(let k=0;k<=p.n;k++){
-   let a=add(d.a,mul(along,p.b/2000+k*p.spacing)),b=add(a,across);const sa=d.sides[j],sb=d.sides[(j+2)%4];
+  r.rim.bays.push({cutLength:d.cut,axisSpan:old.geometry.L,comparisonSpan:d.calcSpan,gridSpan:p.grid.span,spacing:p.spacing,count:p.grid.count,edgeJoists:p.grid.edgeCount,interiorJoists:p.grid.interiorCount,anchoredStart:!!p.grid.start,anchoredEnd:!!p.grid.end});
+  r.count+=p.grid.count;
+  for(let k=0;k<p.grid.positions.length;k++){
+   const isStartEdge=!!p.grid.start&&k===0,isEndEdge=!!p.grid.end&&k===p.grid.positions.length-1;
+   if(isStartEdge||isEndEdge)continue; // physical edge member is generated below as the wall-tangent rim joist
+   let a=add(d.a,mul(along,p.grid.positions[k])),b=add(a,across);const sa=d.sides[j],sb=d.sides[(j+2)%4];
    if(sa.variableBearing){const w=widthAtPoint(sa,a),seat=seatForWidth(w);if(seat!==null&&w>seat+EPS)a=add(a,mul(sa.n,w/2-seat));}
    if(sb.variableBearing){const w=widthAtPoint(sb,b),seat=seatForWidth(w);if(seat!==null&&w>seat+EPS)b=add(b,mul(sb.n,w/2-seat));}
    const blockedByLongitudinalWall=joistConflictsLongitudinalWall(a,b,[d.sides[(j+3)%4],d.sides[(j+1)%4]],p.b/1000);
-   if(c.enabled&&r.complete&&!blockedByLongitudinalWall){r.elements.push({...common,id:c.id+':seated:'+d.index+':'+k,type:'beam',role:'joists',floorRole:'joist',a,b,thickness:p.b/1000,height:p.h/1000,zBase:r.sourceTop,bearingDetail:'dynamic-half-minus-5mm-min-50mm'});r.count++;}
-   else if(blockedByLongitudinalWall)old.count=Math.max(0,old.count-1);
+   if(c.enabled&&r.complete&&!blockedByLongitudinalWall)r.elements.push({...common,id:c.id+':seated:'+d.index+':'+k,type:'beam',role:'joists',floorRole:'joist',a,b,thickness:p.b/1000,height:p.h/1000,zBase:r.sourceTop,bearingDetail:'dynamic-half-minus-5mm-min-50mm',gridIndex:k,gridCount:p.grid.count});
   }
   // Longitudinal rim joist: when joists run parallel to a wall, place one rim joist
   // along that wall on the inside of the bay. Shared walls get one on each relevant side.
@@ -263,7 +292,7 @@ function calculate(model,c,r,G,S){
     const axis=longitudinalAxis(piece,s,p.b/1000);if(!axis||dist(axis.a,axis.b)<=.05)continue;
     const entry={wallIds:[piece.wall.id],length:dist(axis.a,axis.b),thickness:p.b/1000,height:p.h/1000,wallWidth:piece.width,face:d.index,side:s.side,shared:s.shared,wallFaceOffset:piece.width/2,axisOffset:axis.offset,placementRule:'wall-face-plus-half-rim'};
     r.rim.longitudinal.push(entry);
-    if(c.enabled&&r.complete)r.elements.push({...common,id:c.id+':rim-long:'+d.index+':'+s.side+':'+pi++,type:'beam',role:'rimJoist',floorRole:'rimJoist',rimKind:s.shared?'shared-wall-face':'wall-face',a:axis.a,b:axis.b,thickness:p.b/1000,height:p.h/1000,zBase:r.sourceTop,sourceWallIds:entry.wallIds,wallWidth:piece.width,nonLoadBearing:false,rimFace:d.index,rimSide:s.side,rimAxisA:{...piece.a},rimAxisB:{...piece.b},wallFaceOffset:piece.width/2,axisOffset:axis.offset,placementRule:'wall-face-plus-half-rim'});
+    if(c.enabled&&r.complete)r.elements.push({...common,id:c.id+':rim-long:'+d.index+':'+s.side+':'+pi++,type:'beam',role:'rimJoist',floorRole:'edgeJoist',rimKind:s.shared?'shared-wall-face':'wall-face',a:axis.a,b:axis.b,thickness:p.b/1000,height:p.h/1000,zBase:r.sourceTop,sourceWallIds:entry.wallIds,wallWidth:piece.width,nonLoadBearing:false,rimFace:d.index,rimSide:s.side,rimAxisA:{...piece.a},rimAxisB:{...piece.b},wallFaceOffset:piece.width/2,axisOffset:axis.offset,placementRule:'wall-face-plus-half-rim',joistGridAnchor:true});
    }
   }
   if(c.enabled&&r.complete)for(const l of r.layers.filter(l=>l.role!=='joists')){
@@ -303,6 +332,7 @@ function calculate(model,c,r,G,S){
  if(r.rim.commonRims.length)issue('rim-common','Deux solivages face à face : '+r.rim.commonRims.length+' appui(s) commun(s) calculé(s) avec une portée d’appui de chaque côté ; aucune fermeture grise artificielle n’est ajoutée.');
  if(r.rim.longitudinal.length)issue('rim-longitudinal','Rives longitudinales : '+r.rim.longitudinal.length+' pièce(s) bois positionnée(s) au nu de la face du mur ; axe = E/2 + B/2 vers la zone de plancher.');
  issue('rim-longitudinal-grid','Les solives courantes qui tomberaient dans l’épaisseur d’un mur parallèle ou en doublon de sa rive sont supprimées automatiquement ; la rive au nu devient la pièce de bord du champ de solivage.');
+ issue('rim-grid-origin','Calepinage : le nombre et l’entraxe des solives sont calculés depuis les axes des solives de bord collées aux murs parallèles. Avec deux murs parallèles, la répartition est faite d’axe de rive à axe de rive.');
  if(r.rim.longitudinal.some(e=>e.shared))issue('rim-longitudinal-shared','Mur commun avec plancher des deux côtés : chaque zone conserve sa propre rive sur sa face. Aucune rive n’est fusionnée ni centrée dans le mur.');
  issue('rim-scope','Appui automatique = max(5 cm ; épaisseur du mur / 2 − 0,5 cm). Aucun connecteur ou sabot n’est pris en compte dans cette version. Appuis, écrasement, humidité et fixations restent à justifier.');
  issue('rim-face-rule','Règle géométrique du projet : toute rive longitudinale parallèle à un mur support est tangente au nu de la face desservie ; son axe est décalé de E/2 + B/2. Deux zones opposées créent deux pièces distinctes, une par face.');
@@ -338,7 +368,7 @@ function install(B,G,S,F){
   base.elements=base.floors.flatMap(r=>r.elements);base.levels=base.floors.flatMap(r=>r.level?[r.level]:[]);base.quantities=B.quantities(m,base.floors,f);return base;
  };
 }
-const api={MIN_SEAT,EDGE_CLEARANCE,seatForWidth,calculate,install,offsetPolygon,area,sidePieces,mergedSharedRanges,perimeterPieces,longitudinalPieces,longitudinalAxis,pointLineDistance,joistConflictsLongitudinalWall,wallExtensionPieces,widthAtPoint,pieceAtPoint,miterRimSlabs,joinRimJoistAxes,getLastPreview:()=>lastPreview};
+const api={MIN_SEAT,EDGE_CLEARANCE,seatForWidth,calculate,install,offsetPolygon,area,sidePieces,mergedSharedRanges,perimeterPieces,longitudinalPieces,longitudinalAxis,pointLineDistance,joistConflictsLongitudinalWall,coveredLength,fullLongitudinalSide,longitudinalGridAnchor,joistGrid,wallExtensionPieces,widthAtPoint,pieceAtPoint,miterRimSlabs,joinRimJoistAxes,getLastPreview:()=>lastPreview};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 if(root){root.PBPRims=api;if(root.PBPBuilding&&root.PBPGeometry&&root.PBPStructure&&root.PBPFoundations)install(root.PBPBuilding,root.PBPGeometry,root.PBPStructure,root.PBPFoundations);}
 })(typeof window!=='undefined'?window:globalThis);
