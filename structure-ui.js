@@ -11,7 +11,7 @@ const proto=window.ProjectModel.prototype,oldSnapshot=proto.snapshot,oldRestore=
 proto.snapshot=function(){const d=JSON.parse(oldSnapshot.call(this));d.structureDesign=S.settings(this.structureDesign);d.elements=d.elements.filter(e=>e.generator!==S.TAG);return JSON.stringify(d);};
 proto.restore=function(text){oldRestore.call(this,text);this.structureDesign=S.settings(JSON.parse(text).structureDesign);this.elements=this.elements.filter(e=>e.generator!==S.TAG);cacheKey='';};
 const foundationCompute=F.compute;
-F.compute=function(model){const r=S.foundation(model);const result=foundationCompute({...model,foundationAutomation:r.effective});if(result.settings.enabled)result.issues.push(...r.issues);return result;};
+F.compute=function(model){if(model===app.model&&window.PBPSheets&&!window.PBPSheets.needs('foundations',model))return window.PBPSheets.emptyFoundation(model);const r=S.foundation(model);const result=foundationCompute({...model,foundationAutomation:r.effective});if(result.settings.enabled)result.issues.push(...r.issues);return result;};
 function report(){const m=app.model;if(window.PBPSheets&&!window.PBPSheets.needs('structure',m))return window.PBPSheets.emptyStructure();const key=Number(m._pbpRevision)||0;if(key!==cacheKey||!cached){cached=S.report(m);cacheKey=key;}return cached;}
 function refresh(){cacheKey='';app.renderer2d?.draw();app.renderer3d?.draw();}
 function badge(r){if(!ready)return;if(window.PBPSheets&&!window.PBPSheets.needs('structure')){$('#stBadge').hidden=true;return;}const count=r.floors.length,b=$('#stBadge');b.hidden=!count;
