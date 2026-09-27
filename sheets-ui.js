@@ -44,7 +44,9 @@ function build(){
   const b=document.createElement('button');b.id='mobileSheets';b.type='button';b.innerHTML='▱<span>Feuillets</span>';mobileBar.insertBefore(b,mobileBar.firstChild);
   const drawer=document.createElement('div');drawer.id='mobileSheetDrawer';drawer.hidden=true;drawer.innerHTML='<div class="sheet-mobile-handle"></div><div class="sheet-mobile-title">Feuillets du projet</div><div id="mobileSheetList"></div>';document.body.append(drawer);
   const back=document.createElement('div');back.id='sheetMobileBackdrop';back.hidden=true;back.onclick=()=>{mobileOpen=false;drawer.hidden=true;back.hidden=true;document.body.classList.remove('mobile-sheets-open');};document.body.append(back);
+  const closeMobile=()=>{mobileOpen=false;drawer.hidden=true;back.hidden=true;document.body.classList.remove('mobile-sheets-open');};
   b.onclick=()=>{mobileOpen=!mobileOpen;drawer.hidden=!mobileOpen;back.hidden=!mobileOpen;document.body.classList.toggle('mobile-sheets-open',mobileOpen);renderMobile();};
+  for(const id of ['#mobileMore','#mobileTools'])$(id)?.addEventListener('click',closeMobile,true);
  }
 }
 function bindViews(){
