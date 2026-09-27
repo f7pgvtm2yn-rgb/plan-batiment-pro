@@ -39,7 +39,7 @@ function setActive(id,model=app.model){
 function needs(engine,model=app.model){
  const s=active(model);if(!s)return true;if(s.kind==='3d')return true;
  if(engine==='building')return s.kind==='floor';
- if(engine==='structure')return s.kind==='floor'||s.kind==='foundations';
+ if(engine==='structure')return s.kind==='3d';
  if(engine==='foundations')return s.kind==='foundations';
  if(engine==='roof')return s.kind==='roof';
  return false;
