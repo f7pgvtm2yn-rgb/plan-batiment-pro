@@ -113,7 +113,11 @@ function floorReport(m,c,G,S){
   if(r.bays.some(b=>b.blocked||!b.check?.screened||!b.elements.length))blocked=true;
   r.issues.push(...r.bays.flatMap(b=>b.issues.filter(i=>i.severity==='error'&&i.code!=='support-z')));
  }
- if((m.elements||[]).some(e=>e.mode==='construction'&&e.type==='opening'&&(e.levelId===above.id||e.targetLevelId===above.id||e.linkedFloorId===c.id))){blocked=true;r.issues.push(issue('Trémie liée à ce plancher : découpe/chevêtres non calculés. Le nouveau plancher est suspendu.',true));}
+ const linkedOpenings=(m.elements||[]).filter(e=>e.mode==='construction'&&e.type==='opening'&&(e.levelId===above.id||e.targetLevelId===above.id||e.linkedFloorId===c.id));
+ if(linkedOpenings.length){
+  if(linkedOpenings.every(e=>e.openingFraming==='auto'))r.issues.push(issue('Trémie liée à ce plancher : le solivage sera recoupé et encadré automatiquement ; dimensionnement des chevêtres et assemblages à vérifier.'));
+  else{blocked=true;r.issues.push(issue('Trémie liée à ce plancher sans règle de chevêtre automatique : plancher suspendu.',true));}
+ }
  r.complete=!blocked&&r.gap>=-1e-6;
  const common={generator:TAG,levelId:c.id,mode:'construction',locked:true,designStatus:'prestudy',assemblyId:c.id};
  if(c.enabled&&r.complete){
