@@ -10,7 +10,7 @@ const ALIAS={
  '#ccSave':'#saveBtn','#ccExport':'#exportBtn','#ccImport':'#importInput','#ccNew':'#newProjectBtn','#ccPerf':'#statusSnap','#cleanProperties':'#propertiesPanel',
  '#ccPropertiesBody':'#propertiesBody','#ccSelection':'#statusSelection','#ccView2D':'#view2d','#ccView3D':'#view3d','#ccSheetBadge':'#view2d .pane-label'
 };
-const $=s=>document.querySelector(ALIAS[s]||s),$=s=>[...document.querySelectorAll(s==='[data-view]'?'[data-view]':s)];
+const $=s=>document.querySelector(ALIAS[s]||s),$$=s=>[...document.querySelectorAll(s==='[data-view]'?'[data-view]':s)];
 const CALC=root.PBPCleanCalc,B=root.PBPBuilding,S=root.PBPStructure;
 const VERSION='0.17.0',PX_PER_M=50,EPS=.004,WALL_TYPES=new Set(['wallExterior','wallBearing','partition','foundation','beam']),LINE_TYPES=new Set([...WALL_TYPES,'dimension']);
 const EDITABLE_LINES=new Set(['wallExterior','wallBearing','partition','foundation','beam']);
