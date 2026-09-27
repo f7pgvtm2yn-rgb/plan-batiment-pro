@@ -89,7 +89,7 @@ function init(){
  root.addEventListener('pbp:model-revision',()=>{S.invalidateAll();if(app.dragWall){pendingRevision=true;return;}renderAll();});
  $('#planCanvas')?.addEventListener('pointerup',()=>{if(pendingRevision){pendingRevision=false;renderAll();}},true);
  $('#planCanvas')?.addEventListener('pointercancel',()=>{if(pendingRevision){pendingRevision=false;renderAll();}},true);
- root.addEventListener('pbp:sheet-status',renderAll);root.addEventListener('pbp:sheet-change',renderAll);
+ root.addEventListener('pbp:sheet-status',()=>{if(app.dragWall){pendingRevision=true;return;}renderAll();});root.addEventListener('pbp:sheet-change',renderAll);
  const levels=$('#levelSelect');if(levels)new MutationObserver(renderAll).observe(levels,{childList:true,subtree:true});
  const current=S.active();if(current)activate(current.id);
  const v=$('.version');if(v)v.textContent='v0.16.16';document.title='Plan Bâtiment Pro — v0.16.16';root.PBPSheetsUI={activate,render:renderAll};root.PBPSheetsUIReady=true;
