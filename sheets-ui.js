@@ -80,7 +80,10 @@ function init(){
   #mobileSheetList .sheet-label{font-size:13px}#mobileSheetList .sheet-sub{font-size:10px;grid-column:2}
  }
  `;document.head.append(style);
- build();bindViews();renderAll();
+ build();bindViews();
+ $('#rfOpen')?.addEventListener('click',()=>{if(S.active()?.kind!=='roof')activate('roof');},true);
+ for(const id of ['#faOpen','#stFoundationOpen'])$(id)?.addEventListener('click',()=>{if(S.active()?.kind!=='foundations')activate('foundations');},true);
+ renderAll();
  root.addEventListener('pbp:model-revision',()=>{S.invalidateAll();renderAll();});
  root.addEventListener('pbp:sheet-status',renderAll);root.addEventListener('pbp:sheet-change',renderAll);
  const levels=$('#levelSelect');if(levels)new MutationObserver(renderAll).observe(levels,{childList:true,subtree:true});
