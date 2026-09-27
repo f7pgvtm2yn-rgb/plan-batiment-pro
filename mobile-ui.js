@@ -55,7 +55,7 @@ function addStyle(){
 #mobileBar,#mobileMoreSheet,#mobileBackdrop{display:none}
 @media(max-width:${MOBILE_MAX}px){
  html,body{height:100%;height:100dvh;overscroll-behavior:none}
- body.pbp-mobile{--mobile-bar:calc(62px + env(safe-area-inset-bottom));--mobile-top:46px}
+ body.pbp-mobile{--mobile-bar:calc(62px + env(safe-area-inset-bottom));--mobile-top:calc(46px + env(safe-area-inset-top))}
  body.pbp-mobile #app{height:100dvh;grid-template-rows:var(--mobile-top) minmax(0,1fr) var(--mobile-bar)!important}
  body.pbp-mobile .topbar{min-height:var(--mobile-top)!important;height:var(--mobile-top);padding:env(safe-area-inset-top) 8px 0!important;flex-wrap:nowrap!important;overflow:hidden;background:rgba(255,255,255,.97)}
  body.pbp-mobile .brand{display:flex!important;font-size:11px!important;align-items:center;gap:5px;max-width:45vw;overflow:hidden;white-space:nowrap}
