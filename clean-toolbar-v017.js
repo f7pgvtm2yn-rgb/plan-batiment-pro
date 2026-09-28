@@ -53,9 +53,9 @@ function init(){
  column.append(panel);
  function fillRefs(){
   const sel=$('#magRef'),active=app.model.activeLevelId,old=app.magnet.reference;sel.replaceChildren();
-  const none=document.createElement('option');none.value='';none.textContent='Niveau de référence';sel.append(none);
+  const none=document.createElement('option');none.value='below';none.textContent='Niveau porteur inférieur';sel.append(none);
   for(const l of app.model.storyLevels()){if(l.id===active)continue;const o=document.createElement('option');o.value=l.id;o.textContent=l.name;sel.append(o);}
-  sel.value=[...sel.options].some(o=>o.value===old)?old:'';
+  sel.value=[...sel.options].some(o=>o.value===old)?old:'below';
   if(sel.value!==old)app.setMagnet({reference:sel.value});
  }
  function sync(){
