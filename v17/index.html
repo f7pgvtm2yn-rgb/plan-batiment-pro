@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Plan Bâtiment Pro — v17</title>
+<link rel="stylesheet" href="v17.css?v=17.0.0">
+</head>
+<body>
+<div id="app">
+<header class="topbar">
+  <div class="brand">PLAN BÂTIMENT PRO <span class="version">v17 · fenêtres isolées</span></div>
+  <div class="top-actions">
+    <button id="newBtn" class="desktop-only">Nouveau</button>
+    <button id="saveBtn">Enregistrer</button>
+    <button id="exportBtn" class="desktop-only">Exporter</button>
+    <label class="file-btn desktop-only">Importer JSON<input id="importJson" type="file" accept=".json"></label>
+    <button id="undoBtn">↶</button><button id="redoBtn">↷</button>
+    <select id="levelSelect"></select><button id="addLevelBtn">+ Niveau</button>
+    <button id="toolsMobile" title="Outils">☰</button>
+  </div>
+</header>
+
+<div id="drawbar">
+  <span class="draw-title">DESSIN</span>
+  <div class="draw-group"><button id="cotesBtn" class="active">↔ Cotes ✓</button><button id="drawOptionsBtn">Options ▾</button></div>
+  <div class="draw-group"><button id="magnetBtn" class="active">Aimant murs ✓</button><label class="draw-check"><input id="crossLevels" type="checkbox" checked> Repères niveaux</label><select id="magnetRef"><option value="below">Niveau porteur inférieur</option></select></div>
+  <div class="draw-group"><button id="gridBtn" class="active">▦ Grille ✓</button><button id="overlayBtn">◫ Superposition</button></div>
+  <div class="draw-spacer"></div>
+  <div class="zoom"><button id="zoomOut">−</button><button id="zoomReset">100 %</button><button id="zoomIn">＋</button></div>
+</div>
+
+<main id="workspace">
+  <section class="work-window active" data-window="plan">
+    <div class="plan-layout">
+      <aside class="tools-panel">
+        <div class="mode-title">OUTILS DU PROJET</div>
+        <div class="tool-section"><div class="section-title">Dessin</div>
+          <button class="tool active" data-tool="select">↖ Sélection</button>
+          <button class="tool" data-tool="wallExterior">▰ Mur extérieur</button>
+          <button class="tool" data-tool="wallBearing">▰ Mur porteur</button>
+          <button class="tool" data-tool="partition">▏ Cloison</button>
+          <button class="tool" data-tool="column">■ Poteau</button>
+          <button class="tool" data-tool="beam">▬ Poutre</button>
+          <button class="tool" data-tool="slab">▱ Dalle</button>
+          <button class="tool" data-tool="foundation">▰ Fondation</button>
+        </div>
+        <div class="placement">
+          <div class="section-title">Réglages avant pose</div>
+          <div id="placementName" style="font-size:11px;font-weight:750">Mur extérieur</div>
+          <label class="setting"><span>Épaisseur / largeur</span><input id="placementThickness" type="number" step="0.01" value="0.32"></label>
+          <label class="setting"><span>Hauteur</span><input id="placementHeight" type="number" step="0.05" value="2.80"></label>
+        </div>
+        <div class="tool-section"><div class="section-title">Ouvertures</div>
+          <button class="tool" data-tool="door">◩ Porte</button><button class="tool" data-tool="window">▭ Fenêtre</button>
+        </div>
+        <div class="tool-section"><div class="section-title">Circulation</div>
+          <button class="tool" data-tool="opening">□ Trémie</button><button class="tool" data-tool="stair">≋ Escalier</button>
+        </div>
+        <div class="tool-section"><div class="section-title">Mesures</div><button class="tool" data-tool="dimension">↔ Cote</button></div>
+        <div class="hint">Sélection : glissez un rond au coin pour modifier l’angle ; glissez le corps du mur pour déplacer le mur entier. <b>Alt</b> libère temporairement l’aimantation.</div>
+      </aside>
+      <div class="canvas-shell">
+        <div class="pane-label">PLAN 2D</div>
+        <canvas id="planCanvas"></canvas>
+        <aside id="properties" class="properties" hidden><div class="prop-head">PROPRIÉTÉS <button id="closeProperties">›</button></div><div id="propertiesBody" class="prop-body"></div></aside>
+      </div>
+    </div>
+  </section>
+
+  <section class="work-window" data-window="floor">
+    <div class="tech-window">
+      <aside class="tech-sidebar"><h2>🪵 Solivage</h2><div class="sub">Cette fenêtre calcule uniquement le plancher choisi. Les murs du Plan peuvent être modifiés sans lancer ce moteur.</div>
+        <label class="form-row"><span>Niveau inférieur</span><select id="floorBelow"></select></label>
+        <label class="form-row"><span>Niveau supérieur</span><select id="floorAbove"></select></label>
+        <label class="form-row"><span>Entraxe max. (m)</span><input id="floorSpacing" type="number" step="0.01" value="0.40"></label>
+        <label class="form-row"><span>Exploitation Q</span><input id="floorQ" type="number" step="0.1" value="1.5"></label>
+        <label class="form-row"><span>Charge ponctuelle P</span><input id="floorP" type="number" step="0.1" value="2"></label>
+        <label class="form-row"><span>Panneau (mm)</span><input id="floorPanel" type="number" step="1" value="22"></label>
+        <label class="form-row"><span>Chape (mm)</span><input id="floorScreed" type="number" step="1" value="0"></label>
+        <label class="form-row"><span>Sens</span><select id="floorDirection"><option value="short">Portées courtes</option><option value="other">Autre sens</option></select></label>
+        <div class="form-actions"><button id="floorSave">Enregistrer réglages</button><button id="floorCalc" class="primary">Recalculer</button></div>
+        <span id="floorStatus" class="status-pill stale">À calculer</span>
+      </aside>
+      <div class="tech-main"><div class="pane-label">SOLIVAGE 2D</div><canvas id="floorCanvas"></canvas><div id="floorResult" class="result-panel">Ouvrez cette fenêtre puis cliquez sur <b>Recalculer</b>.</div></div>
+    </div>
+  </section>
+
+  <section class="work-window" data-window="foundations">
+    <div class="tech-window">
+      <aside class="tech-sidebar"><h2>🧱 Fondations</h2><div class="sub">Préétude indépendante. Aucun calcul n’est lancé depuis la fenêtre Plan.</div>
+        <label class="form-row"><span>Activer</span><input id="faEnabled" type="checkbox"></label>
+        <label class="form-row"><span>Niveau source</span><select id="faSource"></select></label>
+        <label class="form-row"><span>Système</span><select id="faSystem"><option value="longrines">Longrines + appuis</option><option value="strips">Semelles filantes</option></select></label>
+        <label class="form-row"><span>Largeur semelle (m)</span><input id="faStripWidth" type="number" step="0.01" value="0.60"></label>
+        <label class="form-row"><span>Hauteur semelle (m)</span><input id="faStripHeight" type="number" step="0.01" value="0.30"></label>
+        <label class="form-row"><span>Terrain Z (m)</span><input id="faTerrain" type="number" step="0.01"></label>
+        <label class="form-row"><span>Base Z (m)</span><input id="faBase" type="number" step="0.01" value="-0.80"></label>
+        <div class="form-actions"><button id="faSave">Enregistrer réglages</button><button id="faCalc" class="primary">Recalculer</button></div>
+        <span id="faStatus" class="status-pill stale">À calculer</span>
+      </aside>
+      <div class="tech-main"><div class="pane-label">FONDATIONS</div><canvas id="foundationCanvas"></canvas><div id="faResult" class="result-panel">Calcul à la demande.</div></div>
+    </div>
+  </section>
+
+  <section class="work-window" data-window="roof">
+    <div class="tech-window">
+      <aside class="tech-sidebar"><h2>⌂ Charpente</h2><div class="sub">Le moteur toiture reste totalement arrêté tant que cette fenêtre n’est pas ouverte/recalculée.</div>
+        <label class="form-row"><span>Activer</span><input id="roofEnabled" type="checkbox"></label>
+        <label class="form-row"><span>Niveau support</span><select id="roofLevel"></select></label>
+        <label class="form-row"><span>Pente (°)</span><input id="roofSlope" type="number" step="1" value="35"></label>
+        <label class="form-row"><span>Débord (m)</span><input id="roofOverhang" type="number" step="0.05" value="0.30"></label>
+        <label class="form-row"><span>Entraxe chevrons</span><input id="roofSpacing" type="number" step="0.05" value="0.60"></label>
+        <label class="form-row"><span>Charge G</span><input id="roofDead" type="number" step="0.05" value="0.55"></label>
+        <label class="form-row"><span>Neige</span><input id="roofSnow" type="number" step="0.05"></label>
+        <label class="form-row"><span>Vent</span><input id="roofWind" type="number" step="0.05"></label>
+        <label class="form-row"><span>Autre sens</span><input id="roofInvert" type="checkbox"></label>
+        <div class="form-actions"><button id="roofSave">Enregistrer réglages</button><button id="roofCalc" class="primary">Recalculer</button></div>
+        <span id="roofStatus" class="status-pill stale">À calculer</span>
+      </aside>
+      <div class="tech-main"><div class="pane-label">CHARPENTE / TOITURE</div><canvas id="roofCanvas"></canvas><div id="roofResult" class="result-panel">Calcul à la demande.</div></div>
+    </div>
+  </section>
+
+  <section class="work-window" data-window="rooms"><div class="rooms-main"><div class="card"><h3>⌖ Pièces et surfaces</h3><label class="form-row" style="max-width:420px"><span>Niveau</span><select id="roomsLevel"></select></label><button id="roomsRefresh">Détecter les pièces</button></div><div id="roomsGrid" class="room-grid"></div></div></section>
+
+  <section class="work-window" data-window="isolation"><div class="isolation-main">
+    <div class="card"><h3>▧ Isolation & cloisons</h3><p style="font-size:11px;color:var(--muted)">Les données de second œuvre sont stockées séparément de la structure et ne sont calculées que dans cette fenêtre.</p>
+      <label class="form-row" style="max-width:500px"><span>Mur sélectionné</span><select id="isoWall"></select></label>
+      <label class="form-row" style="max-width:500px"><span>Type</span><select id="isoKind"><option value="iti">ITI</option><option value="ite">ITE</option><option value="mixed">ITI + ITE</option><option value="acoustic">Acoustique</option></select></label>
+      <label class="form-row" style="max-width:500px"><span>Épaisseur isolant (mm)</span><input id="isoThickness" type="number" step="1" value="120"></label>
+      <label class="form-row" style="max-width:500px"><span>Lambda</span><input id="isoLambda" type="number" step="0.001" value="0.035"></label>
+      <button id="isoSave" class="primary">Ajouter / mettre à jour</button>
+    </div><div id="isoList"></div></div>
+  </section>
+
+  <section class="work-window" data-window="3d"><div class="tech-main" style="width:100%"><div class="pane-label">VUE 3D</div><canvas id="canvas3d"></canvas><div id="view3dResult" class="result-panel">La 3D est reconstruite uniquement à l’ouverture de cette fenêtre.</div></div></section>
+
+  <section class="work-window" data-window="quantities"><div class="quantity-main"><div class="card"><h3>Σ Métré</h3><button id="quantityCalc" class="primary">Calculer le métré</button><span id="quantityStatus" class="status-pill stale" style="margin-left:8px">À calculer</span></div><div id="quantityTable"></div></div></section>
+</main>
+
+<nav id="windowBar"></nav>
+<footer class="statusbar"><span id="statusCoords">X: 0,00 m · Y: 0,00 m</span><span id="statusMeasure">Longueur: — · Angle: —</span><span id="statusSnap">Aimant murs ✓</span><span id="statusSelection">Aucun élément sélectionné</span><span id="statusPerf">Fenêtre Plan seule active</span></footer>
+</div>
+
+<dialog id="drawOptions"><form method="dialog"><h3>Options de dessin</h3><label><input id="optAutoDims" type="checkbox" checked> Longueurs automatiques</label><label><input id="optManualDims" type="checkbox" checked> Cotes manuelles</label><label><input id="optSelectedDims" type="checkbox"> Seulement la sélection</label><label>Unité<select id="optUnit"><option value="m">m</option><option value="cm">cm</option><option value="mm">mm</option></select></label><div style="text-align:right"><button>Fermer</button></div></form></dialog>
+<dialog id="overlayDialog"><form method="dialog"><h3>Superposition structurelle</h3><label><input id="overlayBelow" type="checkbox" checked> Niveau inférieur</label><label><input id="overlayAbove" type="checkbox"> Niveau supérieur</label><label><input id="overlayFoundations" type="checkbox" checked> Fondations</label><label>Opacité <input id="overlayOpacity" type="range" min="10" max="70" value="35"></label><div style="text-align:right"><button>Fermer</button></div></form></dialog>
+
+<script src="../geometry-tools.js?v=17"></script>
+<script src="../spaces-core.js?v=17"></script>
+<script src="../snap-core.js?v=17"></script>
+<script src="../rim-core.js?v=17"></script>
+<script src="../joist-coverage.js?v=17"></script>
+<script src="../opening-framing-core.js?v=17"></script>
+<script src="../blocking-core.js?v=17"></script>
+<script src="../floor-detail-core.js?v=17"></script>
+<script src="../coverage-core.js?v=17"></script>
+<script src="../roof-forms.js?v=17"></script>
+<script src="../foundations-core.js?v=17"></script>
+<script src="../structure-core.js?v=17"></script>
+<script src="../roof-core.js?v=17"></script>
+<script src="../building-core.js?v=17"></script>
+<script src="v17-calculators.js?v=17.0.0"></script>
+<script src="v17-app.js?v=17.0.0"></script>
+</body></html>
