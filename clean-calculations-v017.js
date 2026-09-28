@@ -12,15 +12,20 @@ function floorConfig(model,id){
 }
 function selectedGeometry(model,c){
  if(!C||!Z||!c)return{geometry:G,coverage:null,blank:null};
- const d=Z.zones(model,c.belowId,'structure',G,S),pick=Z.resolve(d.rows,c.coverageZones);
+ const d=Z.zones(model,c.belowId,'structure',G,S);let pick=Z.resolve(d.rows,c.coverageZones),followed=false;
+ // Clean Core: a single automatic floor zone follows a moved exterior wall.
+ // There is no ambiguity when exactly one closed structural zone exists.
+ if(pick.missing.length&&d.rows.length===1&&(c.assistant===true||c.coverageFollowWalls!==false)){
+   pick=Z.resolve(d.rows,{mode:'all',ids:[]});followed=true;
+ }
  if(pick.missing.length)return{geometry:G,coverage:{data:d,pick},blank:C.blankFloor(model,c,'Le contour de '+pick.missing.length+' zone(s) choisie(s) a changé. Resélectionnez les zones : aucun remplacement automatique.')};
  if(pick.selection.mode==='selected'&&!pick.chosen.length)return{geometry:G,coverage:{data:d,pick},blank:C.blankFloor(model,c,'Toutes les zones sont volontairement laissées sans plancher. Aucun plafond horizontal ni solive de plancher n’est généré.',true)};
  const scoped=pick.selection.mode==='all'?G:{...G,faces:(mm,id,ss)=>id===c.belowId?{faces:pick.chosen.map(x=>x.face),issues:d.issues}:G.faces(mm,id,ss)};
- return{geometry:scoped,coverage:{data:d,pick},blank:null};
+ return{geometry:scoped,coverage:{data:d,pick,followed},blank:null};
 }
 function attachCoverage(model,c,r,coverage){
  if(!coverage||!C||!Z)return r;
- const {data:d,pick}=coverage,chosenIds=new Set(pick.chosen.map(x=>x.id)),omitted=d.rows.filter(x=>!chosenIds.has(x.id));
+ const {data:d,pick}=coverage,chosenIds=new Set(pick.chosen.map(x=>x.id)),omitted=d.rows.filter(x=>!chosenIds.has(x.id));if(coverage.followed)r.issues.push(issue('Contour du RDC modifié : la zone unique de solivage a suivi automatiquement les nouveaux murs.','warning','coverage-follow-walls'));
  if(pick.selection.mode==='selected'&&C.aboveVoid(model,c,omitted,S)){
    r.complete=false;r.elements=[];r.count=0;r.issues.push(issue('Mur porteur, poutre ou poteau au-dessus d’une zone laissée vide : justifier sa reprise avant de retirer le plancher.','error','load-above-void'));
  }
